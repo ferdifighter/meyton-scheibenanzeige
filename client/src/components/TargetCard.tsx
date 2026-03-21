@@ -19,6 +19,11 @@ export function TargetCard({ detail, onSelect, selected }: Props) {
   const total01 = Number(s.TotalRing01);
   const besterTeiler01 = Number(s.BesterTeiler01);
   const statusText = String(s.Status ?? "").trim();
+  const klasse = String(s.Klasse ?? "").trim();
+  const discLine =
+    klasse.length > 0
+      ? `${String(s.Disziplin)} · ${klasse}`
+      : String(s.Disziplin);
   const stripBg = disciplineStripBackground(String(s.Disziplin));
   const slots = seriesSlotsForCard(detail.serien);
   const last = getLastTreffer(detail.treffer);
@@ -33,7 +38,16 @@ export function TargetCard({ detail, onSelect, selected }: Props) {
             <span className="shooter-name">
               {nachname}, {vorname}
             </span>
-            <span className="disc-under">{String(s.Disziplin)}</span>
+            <span
+              className="disc-under"
+              title={
+                s.KlassenID != null && Number.isFinite(Number(s.KlassenID))
+                  ? `KlassenID: ${s.KlassenID}`
+                  : undefined
+              }
+            >
+              {discLine}
+            </span>
           </span>
         </span>
       </div>

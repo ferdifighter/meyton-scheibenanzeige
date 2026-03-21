@@ -22,6 +22,12 @@ import {
   windowOrderLatestPerStand,
 } from "./scheibenFilter.js";
 import {
+  assignPlatzierungen,
+  buildAuswertungBaseSql,
+  normalizeRankBy,
+  parseRankByMap,
+} from "./auswertungQuery.js";
+import {
   buildDbConfig,
   MEYTON_DEFAULTS,
   removeDbSettingsFile,
@@ -237,6 +243,24 @@ app.get("/api/disziplinen", async (req, res) => {
   }
 });
 
+/**
+ * Platzierungen je Disziplin & Klasse.
+ * `rankBy` = Standard; optional `rankByMap` = JSON `{"LP 20":"besterTeiler","LG …":"total"}` je Disziplin (TRIM).
+ * Gleiche Filter wie Liste (`disziplin`, `stand`, `allDates`, …).
+ */
+app.get("/api/auswertung", async (req, res) => {
+  const rankBy = normalizeRankBy(req.query.rankBy);
+  const rankByPerDisciplin = parseRankByMap(req.query.rankByMap);
+  try {
+    const { sql, params } = buildAuswertungBaseSql(req.query);
+    const [rows] = await pool.query(sql, params);
+    const ranked = assignPlatzierungen(rows, rankBy, rankByPerDisciplin);
+    res.json({ rankBy, rankByPerDisciplin, rows: ranked });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message) });
+  }
+});
+
 app.get("/api/scheiben", async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 50, 5000);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
@@ -250,9 +274,9 @@ app.get("/api/scheiben", async (req, res) => {
   const params = [...extraParams];
   let searchSql = "";
   if (q) {
-    searchSql = ` AND (Nachname LIKE ? OR Vorname LIKE ? OR Disziplin LIKE ?) `;
+    searchSql = ` AND (Nachname LIKE ? OR Vorname LIKE ? OR Disziplin LIKE ? OR Klasse LIKE ?) `;
     const like = `%${q}%`;
-    params.push(like, like, like);
+    params.push(like, like, like, like);
   }
 
   const baseWhere = `WHERE ${whereActiveScheibe("Scheiben")} ${extraWhere} ${searchSql}`;
@@ -262,10 +286,10 @@ app.get("/api/scheiben", async (req, res) => {
   if (filters.latestPerStand) {
     sql = `
       SELECT ScheibenID, Nachname, Vorname, Disziplin, StandNr, Trefferzahl,
-             TotalRing, TotalRing01, Zeitstempel, Starterliste
+             TotalRing, TotalRing01, Zeitstempel, Starterliste, Klasse, KlassenID
       FROM (
         SELECT ScheibenID, Nachname, Vorname, Disziplin, StandNr, Trefferzahl,
-               TotalRing, TotalRing01, Zeitstempel, Starterliste,
+               TotalRing, TotalRing01, Zeitstempel, Starterliste, Klasse, KlassenID,
                ROW_NUMBER() OVER (
                  PARTITION BY StandNr
                  ORDER BY ${winOrder}
@@ -279,7 +303,7 @@ app.get("/api/scheiben", async (req, res) => {
   } else {
     sql = `
       SELECT ScheibenID, Nachname, Vorname, Disziplin, StandNr, Trefferzahl,
-             TotalRing, TotalRing01, Zeitstempel, Starterliste
+             TotalRing, TotalRing01, Zeitstempel, Starterliste, Klasse, KlassenID
       FROM Scheiben
       ${baseWhere}
       ORDER BY Zeitstempel DESC
@@ -314,9 +338,9 @@ app.get("/api/board", async (req, res) => {
   const params = [...extraParams];
   let searchSql = "";
   if (q) {
-    searchSql = ` AND (Nachname LIKE ? OR Vorname LIKE ? OR Disziplin LIKE ?) `;
+    searchSql = ` AND (Nachname LIKE ? OR Vorname LIKE ? OR Disziplin LIKE ? OR Klasse LIKE ?) `;
     const like = `%${q}%`;
-    params.push(like, like, like);
+    params.push(like, like, like, like);
   }
 
   const baseWhere = `WHERE ${whereActiveScheibe("Scheiben")} ${extraWhere} ${searchSql}`;

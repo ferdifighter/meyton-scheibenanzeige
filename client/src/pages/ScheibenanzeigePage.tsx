@@ -135,7 +135,7 @@ export function ScheibenanzeigePage() {
   }, [loadBoard]);
 
   return (
-    <div className="app-root">
+    <div className="app-root app-root-scheibenanzeige">
       <header className="header header-bar">
         <div className="header-brand">
           <Link to="/" className="header-back-link">

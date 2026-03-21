@@ -1,4 +1,5 @@
 import type {
+  AuswertungResponse,
   DbSettingsResponse,
   UiSettingsResponse,
   ScheibeRow,
@@ -151,6 +152,33 @@ export async function fetchBoard(
 
 export async function fetchScheibe(id: string | number): Promise<ScheibeDetail> {
   const r = await fetch(`/api/scheiben/${encodeURIComponent(String(id))}`);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+/** Platzierungen je Disziplin & Klasse (Server sortiert pro Disziplin). */
+export async function fetchAuswertung(opts: {
+  /** Standard, wenn `rankByPerDisciplin` eine Disziplin nicht enthält */
+  rankBy: "total" | "besterTeiler";
+  /** optional: je Disziplin (exakter Name/TRIM wie in der DB) */
+  rankByPerDisciplin?: Record<string, "total" | "besterTeiler">;
+  disziplin?: string;
+  /** alle Tage statt nur heute */
+  allDates?: boolean;
+  stand?: number;
+}): Promise<AuswertungResponse> {
+  const params = new URLSearchParams();
+  params.set("rankBy", opts.rankBy);
+  const map = opts.rankByPerDisciplin;
+  if (map != null && Object.keys(map).length > 0) {
+    params.set("rankByMap", JSON.stringify(map));
+  }
+  if (opts.disziplin?.trim()) params.set("disziplin", opts.disziplin.trim());
+  if (opts.allDates) params.set("allDates", "1");
+  if (opts.stand != null && opts.stand > 0) {
+    params.set("stand", String(opts.stand));
+  }
+  const r = await fetch(`/api/auswertung?${params}`);
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }

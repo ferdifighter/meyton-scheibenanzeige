@@ -85,6 +85,14 @@ function AppLayout() {
             Trefferprotokoll
           </NavLink>
           <NavLink
+            to="/auswertung"
+            className={({ isActive }) =>
+              `app-sidebar-link${isActive ? " app-sidebar-link-active" : ""}`
+            }
+          >
+            Auswertung
+          </NavLink>
+          <NavLink
             to="/einstellungen"
             className={({ isActive }) =>
               `app-sidebar-link${isActive ? " app-sidebar-link-active" : ""}`

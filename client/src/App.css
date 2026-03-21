@@ -40,6 +40,12 @@ body {
   color: var(--text);
 }
 
+body:has(.app-root-scheibenanzeige) {
+  overflow: hidden;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(280px, 340px) 1fr;
@@ -433,6 +439,167 @@ body {
   .webscore-grid {
     grid-template-columns: repeat(5, 1fr);
   }
+}
+
+/* Scheibenanzeige (/scheibenanzeige): Vollbild, bis zu 8 Karten ohne vertikales Scrollen */
+.app-root-scheibenanzeige {
+  min-height: 100dvh;
+  height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-root-scheibenanzeige .header.header-bar {
+  flex-shrink: 0;
+  padding: 0.55rem 1.15rem;
+}
+
+.app-root-scheibenanzeige .header-back-link {
+  margin-bottom: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.app-root-scheibenanzeige .header-brand h1 {
+  font-size: 1.1rem;
+}
+
+.app-root-scheibenanzeige .subtitle {
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+}
+
+.app-root-scheibenanzeige .header-clock-date {
+  font-size: 0.72rem;
+}
+
+.app-root-scheibenanzeige .header-clock-time {
+  font-size: 1.1rem;
+}
+
+.app-root-scheibenanzeige .board-section {
+  flex: 1;
+  min-height: 0;
+  padding: 0.4rem 0.65rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-root-scheibenanzeige .board-section > .error,
+.app-root-scheibenanzeige .board-section > .muted {
+  flex-shrink: 0;
+}
+
+.app-root-scheibenanzeige .board-page-hint {
+  flex-shrink: 0;
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+}
+
+.app-root-scheibenanzeige .webscore-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  align-items: stretch;
+}
+
+.app-root-scheibenanzeige .webscore-grid > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+@media (max-width: 960px), (orientation: portrait) and (max-width: 1100px) {
+  .app-root-scheibenanzeige .webscore-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.app-root-scheibenanzeige button.target-card,
+.app-root-scheibenanzeige article.target-card {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.app-root-scheibenanzeige .target-card-strip {
+  flex-shrink: 0;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.72rem;
+}
+
+.app-root-scheibenanzeige .target-card-strip .disc-under {
+  font-size: 0.58rem;
+}
+
+.app-root-scheibenanzeige .target-card-face {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0.3rem 0.45rem 0.15rem;
+}
+
+.app-root-scheibenanzeige .target-card-face .issf-svg {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-height: none;
+}
+
+.app-root-scheibenanzeige .target-card-last-treffer-num {
+  flex-shrink: 0;
+  padding: 0.2rem 0.35rem 0.3rem;
+  font-size: 0.62rem;
+}
+
+.app-root-scheibenanzeige .target-card-last-treffer-num .last-treffer-val {
+  font-size: 0.72rem;
+}
+
+.app-root-scheibenanzeige .target-card-status {
+  flex-shrink: 0;
+  padding: 0.18rem 0.45rem;
+  font-size: 0.6rem;
+}
+
+.app-root-scheibenanzeige .target-card-scores {
+  flex-shrink: 0;
+  padding: 0.28rem 0.45rem 0.22rem;
+  gap: 0.35rem;
+}
+
+.app-root-scheibenanzeige .target-card-scores .sc-dec {
+  font-size: 1.05rem;
+}
+
+.app-root-scheibenanzeige .target-card-scores .sc-int {
+  font-size: 1.15rem;
+}
+
+.app-root-scheibenanzeige .target-card-scores .sc-last {
+  font-size: 0.78rem;
+}
+
+.app-root-scheibenanzeige .target-card-series {
+  flex-shrink: 0;
+  padding: 0.25rem 0.4rem 0.45rem;
+  gap: 0.1rem;
+}
+
+.app-root-scheibenanzeige .ser-slot {
+  font-size: 0.58rem;
+}
+
+.app-root-scheibenanzeige .ser-val {
+  font-size: 0.68rem;
 }
 
 button.target-card {
@@ -1356,4 +1523,338 @@ button.target-card {
 .treffer-dir-svg {
   display: block;
   transform-origin: 8px 8px;
+}
+
+/* Auswertung (Platzierungen je Disziplin & Klasse) */
+.auswertung-toolbar {
+  align-items: flex-end;
+}
+
+.auswertung-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.auswertung-check input {
+  accent-color: var(--accent);
+}
+
+.auswertung-refresh {
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auswertung-refresh:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.protokoll-filter-select-narrow {
+  min-width: 7rem;
+  max-width: 10rem;
+}
+
+.auswertung-filter-warn {
+  font-size: 0.78rem;
+  margin: 0 0 0.75rem;
+}
+
+.auswertung-rank-hint {
+  font-size: 0.82rem;
+  margin: 0 0 1rem;
+  max-width: 44rem;
+  line-height: 1.45;
+}
+
+.auswertung-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.auswertung-group-title {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+}
+
+.auswertung-group-sep {
+  opacity: 0.55;
+  font-weight: 400;
+}
+
+.auswertung-group-count {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.auswertung-table-wrap {
+  overflow-x: auto;
+}
+
+.auswertung-table th,
+.auswertung-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.auswertung-platz {
+  font-weight: 800;
+  width: 3.25rem;
+}
+
+.auswertung-disc-section {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 0.85rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.auswertung-disc-section-title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.auswertung-disc-section-lead {
+  margin: 0 0 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  max-width: 40rem;
+}
+
+.auswertung-default-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.auswertung-disc-table-wrap {
+  max-height: min(50vh, 22rem);
+  overflow: auto;
+}
+
+.auswertung-disc-table .auswertung-disc-name {
+  font-weight: 600;
+  max-width: 18rem;
+  word-break: break-word;
+}
+
+.auswertung-disc-select {
+  width: 100%;
+  min-width: min(100%, 20rem);
+  max-width: 28rem;
+}
+
+.auswertung-group-mode {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  background: var(--accent-dim);
+}
+
+.auswertung-print-btn {
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auswertung-print-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.auswertung-print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  /* Kein dunkles Theme auf Papier; Browser-Hintergrundgrafiken sparen */
+  html {
+    color-scheme: light !important;
+  }
+
+  body {
+    -webkit-print-color-adjust: economy !important;
+    print-color-adjust: economy !important;
+    background: #fff !important;
+    background-image: none !important;
+    color: #000 !important;
+  }
+
+  /* Vollständiger Inhalt drucken (nicht nur sichtbarer Scrollbereich) */
+  html,
+  body,
+  #root {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body:has(.app-root-scheibenanzeige) {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .app-root,
+  .app-layout-with-sidebar {
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .app-root,
+  .app-layout-with-sidebar,
+  .app-sidebar-main,
+  .protokoll-page,
+  .auswertung-page,
+  .auswertung-groups {
+    background: #fff !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+
+  .protokoll-page,
+  .auswertung-page {
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .app-sidebar {
+    display: none !important;
+  }
+
+  .app-sidebar-main {
+    margin-left: 0 !important;
+    flex: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+  }
+
+  html.print-auswertung-prepare .app-sidebar-main,
+  html.print-auswertung-prepare #root,
+  html.print-auswertung-prepare .app-root,
+  html.print-auswertung-prepare .app-layout-with-sidebar {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .auswertung-print-only {
+    display: block !important;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #ccc;
+  }
+
+  .auswertung-print-meta {
+    margin: 0 0 0.2rem !important;
+    font-size: 0.75rem !important;
+    color: #333 !important;
+    line-height: 1.35;
+  }
+
+  .auswertung-print-meta:first-child {
+    font-weight: 600;
+    font-size: 0.88rem !important;
+  }
+
+  .auswertung-page.protokoll-page {
+    padding: 0 !important;
+  }
+
+  .protokoll-page-header h1 {
+    color: #000 !important;
+    margin-bottom: 0.35rem !important;
+  }
+
+  /* Große Tabellen dürfen umbrechen; sonst clippt manches Layout den Rest */
+  .auswertung-group {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .auswertung-table thead {
+    break-inside: avoid;
+  }
+
+  .auswertung-group-title {
+    color: #000 !important;
+  }
+
+  .auswertung-group-count {
+    color: #444 !important;
+  }
+
+  .auswertung-group-mode {
+    background: transparent !important;
+    color: #000 !important;
+    border: 1px solid #999 !important;
+  }
+
+  .auswertung-table-wrap {
+    overflow: visible !important;
+  }
+
+  .auswertung-table {
+    border-collapse: collapse;
+  }
+
+  .auswertung-table th,
+  .auswertung-table td {
+    border: 1px solid #ccc !important;
+    color: #000 !important;
+  }
+
+  .auswertung-table thead th {
+    background: #f0f0f0 !important;
+  }
 }

@@ -230,6 +230,7 @@ export function TrefferProtokollPage() {
               const id = row.ScheibenID;
               const active = selectedId === id;
               const label = `${String(row.Nachname).trim()}, ${String(row.Vorname).trim()}`;
+              const klasse = String(row.Klasse ?? "").trim();
               return (
                 <li key={id}>
                   <button
@@ -240,6 +241,7 @@ export function TrefferProtokollPage() {
                     <span className="protokoll-shooter-name">{label}</span>
                     <span className="protokoll-shooter-meta">
                       St. {row.StandNr} · {String(row.Disziplin)}
+                      {klasse ? ` · ${klasse}` : ""}
                     </span>
                     <span className="protokoll-shooter-total">
                       {ring01ToDisplay(row.TotalRing01)}
@@ -271,11 +273,29 @@ export function TrefferProtokollPage() {
                 </h2>
                 <p className="protokoll-detail-sub">
                   Stand {Number(s.StandNr)} · {String(s.Disziplin)}
+                  {String(s.Klasse ?? "").trim()
+                    ? ` · ${String(s.Klasse).trim()}`
+                    : ""}
                   {String(s.Starterliste ?? "").trim()
                     ? ` · ${String(s.Starterliste)}`
                     : ""}
                 </p>
                 <dl className="protokoll-detail-stats">
+                  {String(s.Klasse ?? "").trim() ? (
+                    <div>
+                      <dt>Klasse</dt>
+                      <dd
+                        title={
+                          s.KlassenID != null &&
+                          Number.isFinite(Number(s.KlassenID))
+                            ? `KlassenID: ${s.KlassenID}`
+                            : undefined
+                        }
+                      >
+                        {String(s.Klasse).trim()}
+                      </dd>
+                    </div>
+                  ) : null}
                   <div>
                     <dt>Gesamt</dt>
                     <dd>{ring01ToDisplay(Number(s.TotalRing01))}</dd>

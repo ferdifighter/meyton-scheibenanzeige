@@ -39,6 +39,10 @@ export type ScheibeRow = {
   Status?: string;
   Zeitstempel: string;
   Starterliste: string;
+  /** Name der Schützenklasse (Meyton `Scheiben.Klasse`) */
+  Klasse?: string;
+  /** ID der Schützenklasse (Meyton `Scheiben.KlassenID`) */
+  KlassenID?: number;
 };
 
 export type SerieRow = {
@@ -66,4 +70,29 @@ export type ScheibeDetail = {
   scheibe: Record<string, unknown> & ScheibeRow;
   serien: SerieRow[];
   treffer: TrefferRow[];
+};
+
+/** GET /api/auswertung — eine Zeile pro Scheibe mit Platz in (Disziplin, Klasse) */
+export type AuswertungRow = {
+  ScheibenID: number;
+  Platz: number;
+  Nachname: string;
+  Vorname: string;
+  StandNr: number;
+  Disziplin: string;
+  Klasse: string | null;
+  KlassenID: number | null;
+  TotalRing01: number;
+  BesterTeiler01: number | null;
+  Trefferzahl: number;
+  DisziplinNorm: string;
+  KlasseDisplay: string;
+};
+
+export type AuswertungResponse = {
+  /** Fallback, wenn eine Disziplin nicht in `rankByPerDisciplin` vorkommt */
+  rankBy: "total" | "besterTeiler";
+  /** vom Server geparstes `rankByMap` (kann leer sein) */
+  rankByPerDisciplin: Record<string, "total" | "besterTeiler">;
+  rows: AuswertungRow[];
 };

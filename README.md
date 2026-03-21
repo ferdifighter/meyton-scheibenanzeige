@@ -105,6 +105,7 @@ Anschließend die im Terminal angezeigte URL öffnen (typisch `http://localhost:
 | `/` | Start (mit **Sidebar**: Navigation) |
 | `/scheibenanzeige` | Scheiben-Karten (Live-Board), **ohne** Sidebar – in der Sidebar per Link **im neuen Tab** öffnen |
 | `/trefferprotokoll` | Trefferprotokoll: Schützenliste links, Detail mit Treffern/Serien rechts |
+| `/auswertung` | Platzierungen je **Disziplin** und **Klasse** (Gesamt oder Bester Teiler); **Drucken** blendet Sidebar und Filter aus |
 | `/einstellungen` | **SSMDB2**-Zugang (JSON) und **Scheibenanzeige** (Seitenwechsel z. B. alle 30 s) |
 
 Die Sidebar enthält u. a. den Link **Scheibenanzeige** (`target="_blank"`), damit die Großansicht auf einem zweiten Monitor separat laufen kann.
@@ -123,7 +124,8 @@ Nach `npm run build:client` legt der Server bei Start die gebaute Oberfläche au
 - `PUT /api/settings/ui` – Body: `boardRotationIntervalSec` (5–3600), **`clubDisplayName`** (max. 200 Zeichen; leer → Standardname)
 - `GET /api/disziplinen` – Distinct **Disziplin** (optional **`stand`** = eine Standnummer → nur Disziplinen auf diesem Stand)
 - `GET /api/stande` – Distinct **StandNr** (optional **`disziplin`** → nur Stände mit dieser Disziplin)
-- `GET /api/scheiben?…&stand=…&disziplin=…` – Liste; **`stand`** = eine Standnummer (`StandNr = ?`); **`latestPerStand=0`** = alle passenden Zeilen; Limit max. **5000**
+- `GET /api/auswertung?rankBy=total|besterTeiler&rankByMap=…&…` – Platzierungen je **Disziplin** + **Klasse**; **`rankBy`** = Standard; optional **`rankByMap`** = JSON `{"LP 20":"besterTeiler","LG …":"total"}` (Disziplin wie in der DB); gleiche Filter wie Liste: **`disziplin`**, **`stand`**, **`allDates=1`**, ggf. **`stands`** / **`starterliste`**
+- `GET /api/scheiben?…&stand=…&disziplin=…` – Liste; **`stand`** = eine Standnummer (`StandNr = ?`); **`latestPerStand=0`** = alle passenden Zeilen; Limit max. **5000**; Spalten u. a. **`Klasse`**, **`KlassenID`** (Schützenklasse laut Meyton-`Scheiben`). **`q`** durchsucht auch **`Klasse`**
 - `GET /api/board?q=…&limit=…` – mehrere Scheiben **mit** Serien/Treffer (Dashboard-Karten); Standard-**limit** = 5000, höchstens **`BOARD_MAX_LIMIT`** (bis 50000, siehe `.env.example`)
 - `GET /api/scheiben/:id` – Detail inkl. `Serien` und `Treffer`
 
