@@ -1,0 +1,9 @@
+# Enthält DB-Zugangsdaten – nicht versionieren
+.cursor/mcp.json
+
+node_modules/
+dist/
+server/.env
+server/data/
+client/dist
+dist-electron/

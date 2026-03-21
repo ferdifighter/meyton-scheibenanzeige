@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "mysql-SSMDB2": {
+      "command": "npx",
+      "type": "stdio",
+      "args": [
+        "-y",
+        "@berthojoris/mcp-mysql-server",
+        "mysql://BENUTZER:PASSWORT@192.168.10.200:3306/SSMDB2",
+        "list,read,utility,create,update,delete,execute,ddl"
+      ]
+    }
+  }
+}
