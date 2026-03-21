@@ -305,7 +305,11 @@ export function TrefferProtokollPage() {
               </div>
 
               <div className="protokoll-detail-face">
-                <IssfTargetFace treffer={detail.treffer} variant="card" />
+                <IssfTargetFace
+                  treffer={detail.treffer}
+                  variant="card"
+                  discipline={String(detail.scheibe.Disziplin)}
+                />
               </div>
 
               {detail.serien.length > 0 && (

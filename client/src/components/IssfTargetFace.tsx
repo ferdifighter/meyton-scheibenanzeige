@@ -2,6 +2,12 @@ import type { ReactNode } from "react";
 import type { TrefferRow } from "../types";
 import { ring01ToDisplay } from "../format";
 import {
+  innerTenOuterRadiusMmAirPistol,
+  isIssfAirPistolDiscipline,
+  ISSF_AIR_PISTOL_OUTER_RADIUS_MM,
+  ringOuterRadiiMmAirPistol,
+} from "../issfAirPistol";
+import {
   ISSF_10M_OUTER_RADIUS_MM,
   ISSF_RING10_OUTER_RADIUS_MM,
   ringOuterRadiiMm,
@@ -13,6 +19,8 @@ type Props = {
   treffer: TrefferRow[];
   variant?: "card" | "large";
   className?: string;
+  /** Meyton-Disziplin (z. B. „Luftpistole“) → andere Scheibenmaße */
+  discipline?: string;
 };
 
 const PAD_MM = 4;
@@ -34,23 +42,41 @@ function shotFill(ring01: number, alpha = 0.55): string {
   return `rgba(${rgb}, ${alpha})`;
 }
 
-/** Label-Farbe: Ring 1–3 auf Weiß, 4–9 auf Schwarz */
-function labelFill(ringNum: number): string {
+/** Label-Farbe Luftgewehr: Ring 1–3 auf Weiß, 4–9 auf Schwarz */
+function labelFillRifle(ringNum: number): string {
   return ringNum <= 3 ? "#1a1a1a" : "#f5f5f5";
+}
+
+/** Label-Farbe Luftpistole: Ring 1–6 auf Weiß, 7–8 auf Schwarz */
+function labelFillPistol(ringNum: number): string {
+  return ringNum <= 6 ? "#1a1a1a" : "#f5f5f5";
 }
 
 export function IssfTargetFace({
   treffer,
   variant = "card",
   className = "",
+  discipline,
 }: Props) {
-  const radii = ringOuterRadiiMm();
-  const outer = ISSF_10M_OUTER_RADIUS_MM + PAD_MM;
+  const airPistol =
+    discipline != null && isIssfAirPistolDiscipline(String(discipline));
+  const radii = airPistol ? ringOuterRadiiMmAirPistol() : ringOuterRadiiMm();
+  const outer =
+    (airPistol ? ISSF_AIR_PISTOL_OUTER_RADIUS_MM : ISSF_10M_OUTER_RADIUS_MM) +
+    PAD_MM;
   const vb = `${-outer} ${-outer} ${2 * outer} ${2 * outer}`;
 
   const strokeW = variant === "card" ? 0.1 : 0.08;
   const labelSize = variant === "card" ? 0.95 : 1.05;
-  const shotR = variant === "card" ? 1.05 : 0.9;
+  /** Luftpistole: größere Scheibe im gleichen mm-Raum → gleicher mm-Radius wirkt zu klein; an Luftgewehr-Ansicht angleichen */
+  const shotScale =
+    airPistol
+      ? (ISSF_AIR_PISTOL_OUTER_RADIUS_MM + PAD_MM) /
+        (ISSF_10M_OUTER_RADIUS_MM + PAD_MM)
+      : 1;
+  const shotR = (variant === "card" ? 1.05 : 0.9) * shotScale;
+  /** Ringziffern 1–8: bei Luftpistole mitlesbar vergrößern (nicht die Schussnummern in den Treffern) */
+  const ringLabelSize = labelSize * (airPistol ? shotScale : 1);
   /** Schussnummer (Treffer) im Kreis, mm-SVG */
   const shotNumBase = variant === "card" ? 0.92 : 0.82;
 
@@ -79,34 +105,71 @@ export function IssfTargetFace({
 
   /** Scheibenfläche von außen nach innen übereinanderlegen */
   const fillCircles: ReactNode[] = [];
-  fillCircles.push(
-    <circle key="w0" cx={0} cy={0} r={radii[0]} fill={FILL_WHITE} />
-  );
-  for (let i = 1; i <= 2; i++) {
+  if (airPistol) {
     fillCircles.push(
-      <circle key={`w${i}`} cx={0} cy={0} r={radii[i]} fill={FILL_WHITE} />
+      <circle key="ap-w0" cx={0} cy={0} r={radii[0]} fill={FILL_WHITE} />
+    );
+    for (let i = 1; i <= 5; i++) {
+      fillCircles.push(
+        <circle key={`ap-w${i}`} cx={0} cy={0} r={radii[i]} fill={FILL_WHITE} />
+      );
+    }
+    for (let i = 6; i <= 8; i++) {
+      fillCircles.push(
+        <circle key={`ap-b${i}`} cx={0} cy={0} r={radii[i]} fill={FILL_BLACK} />
+      );
+    }
+    fillCircles.push(
+      <circle
+        key="ap-r10"
+        cx={0}
+        cy={0}
+        r={radii[9]}
+        fill="#ffffff"
+        stroke="none"
+      />
+    );
+    fillCircles.push(
+      <circle
+        key="ap-inner10"
+        cx={0}
+        cy={0}
+        r={innerTenOuterRadiusMmAirPistol()}
+        fill={FILL_BLACK}
+        stroke="none"
+      />
+    );
+  } else {
+    fillCircles.push(
+      <circle key="w0" cx={0} cy={0} r={radii[0]} fill={FILL_WHITE} />
+    );
+    for (let i = 1; i <= 2; i++) {
+      fillCircles.push(
+        <circle key={`w${i}`} cx={0} cy={0} r={radii[i]} fill={FILL_WHITE} />
+      );
+    }
+    for (let i = 3; i <= 8; i++) {
+      fillCircles.push(
+        <circle key={`b${i}`} cx={0} cy={0} r={radii[i]} fill={FILL_BLACK} />
+      );
+    }
+    fillCircles.push(
+      <circle
+        key="inner10"
+        cx={0}
+        cy={0}
+        r={ISSF_RING10_OUTER_RADIUS_MM}
+        fill="#ffffff"
+        stroke="none"
+      />
     );
   }
-  for (let i = 3; i <= 8; i++) {
-    fillCircles.push(
-      <circle key={`b${i}`} cx={0} cy={0} r={radii[i]} fill={FILL_BLACK} />
-    );
-  }
-  fillCircles.push(
-    <circle
-      key="inner10"
-      cx={0}
-      cy={0}
-      r={ISSF_RING10_OUTER_RADIUS_MM}
-      fill="#ffffff"
-      stroke="none"
-    />
-  );
 
   /** Ringgrenzen: innen auf Schwarz helle Linien, außen dunkel */
   const ringStrokes: ReactNode[] = [];
-  for (let i = 0; i <= 8; i++) {
-    const onBlack = i >= 3;
+  const strokeMax = airPistol ? 9 : 8;
+  for (let i = 0; i <= strokeMax; i++) {
+    const onBlack = airPistol ? i >= 6 : i >= 3;
     ringStrokes.push(
       <circle
         key={`st-${i}`}
@@ -119,10 +182,24 @@ export function IssfTargetFace({
       />
     );
   }
+  if (airPistol) {
+    ringStrokes.push(
+      <circle
+        key="st-inner10"
+        cx={0}
+        cy={0}
+        r={innerTenOuterRadiusMmAirPistol()}
+        fill="none"
+        stroke={STROKE_ON_WHITE}
+        strokeWidth={strokeW}
+      />
+    );
+  }
 
   /** Ringnummern 1–8 an vier Achsen (DSB/ISSF-Layout) */
   const labelAngles = [Math.PI / 2, 0, -Math.PI / 2, Math.PI];
   const ringLabels: ReactNode[] = [];
+  const lf = airPistol ? labelFillPistol : labelFillRifle;
   for (let num = 1; num <= 8; num++) {
     const rMid = (radii[num - 1] + radii[num]) / 2;
     for (let li = 0; li < 4; li++) {
@@ -136,8 +213,8 @@ export function IssfTargetFace({
           y={ly}
           textAnchor="middle"
           dominantBaseline="middle"
-          fill={labelFill(num)}
-          fontSize={labelSize}
+          fill={lf(num)}
+          fontSize={ringLabelSize}
           fontWeight={700}
           style={{ fontFamily: "DM Sans, system-ui, sans-serif" }}
         >
@@ -152,7 +229,11 @@ export function IssfTargetFace({
       className={`issf-svg ${className}`}
       viewBox={vb}
       preserveAspectRatio="xMidYMid meet"
-      aria-label="ISSF 10 m Luftgewehrscheibe mit Treffern"
+      aria-label={
+        airPistol
+          ? "ISSF 10 m Luftpistolenscheibe mit Treffern"
+          : "ISSF 10 m Luftgewehrscheibe mit Treffern"
+      }
     >
       <rect
         x={-outer}
@@ -169,6 +250,8 @@ export function IssfTargetFace({
         const last = isLastShot(t);
         const r = last ? shotR * 1.42 : shotR;
         const glow = last ? shotR * 2.55 : shotR * 1.8;
+        const ringOff = 0.38 * shotScale;
+        const ringIn = 0.14 * shotScale;
         const fillAlpha = last ? 0.88 : 0.75;
         const glowAlpha = last ? 0.5 : 0.35;
         const title = last
@@ -188,10 +271,10 @@ export function IssfTargetFace({
               <circle
                 cx={xm}
                 cy={-ym}
-                r={r + 0.38}
+                r={r + ringOff}
                 fill="none"
                 stroke="rgba(0,0,0,0.55)"
-                strokeWidth={0.2}
+                strokeWidth={0.2 * shotScale}
               />
             )}
             <circle
@@ -200,16 +283,16 @@ export function IssfTargetFace({
               r={r}
               fill={shotFill(t.Ring01, fillAlpha)}
               stroke={last ? "#ffffff" : "rgba(255,255,255,0.9)"}
-              strokeWidth={last ? 0.28 : 0.12}
+              strokeWidth={(last ? 0.28 : 0.12) * shotScale}
             />
             {last && (
               <circle
                 cx={xm}
                 cy={-ym}
-                r={r + 0.14}
+                r={r + ringIn}
                 fill="none"
                 stroke="rgba(255,255,255,0.95)"
-                strokeWidth={0.1}
+                strokeWidth={0.1 * shotScale}
               />
             )}
             <text
@@ -219,7 +302,7 @@ export function IssfTargetFace({
               dominantBaseline="central"
               fill="#ffffff"
               stroke="rgba(0,0,0,0.55)"
-              strokeWidth={last ? 0.14 : 0.1}
+              strokeWidth={(last ? 0.14 : 0.1) * shotScale}
               paintOrder="stroke fill"
               fontSize={
                 (t.Treffer >= 10 ? shotNumBase * 0.82 : shotNumBase) *

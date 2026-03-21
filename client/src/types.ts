@@ -3,6 +3,8 @@ export type UiSettingsResponse = {
   boardRotationIntervalSec: number;
   /** fest: Anzeige pro „Seite“ in der Scheibenanzeige */
   boardPageSize: 8;
+  /** Sidebar + Untertitel Scheibenanzeige */
+  clubDisplayName: string;
   /** gesetzt u. a. bei Electron/AppImage: Ordner für db-settings.json / ui-settings.json */
   userDataDirectory?: string | null;
 };

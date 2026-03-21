@@ -10,7 +10,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const UI_DEFAULTS = {
   /** Wechsel zur nächsten „Seite“ (je 8 Scheiben) in der Scheibenanzeige */
   boardRotationIntervalSec: 30,
+  /** Sidebar + Scheibenanzeige-Kopf */
+  clubDisplayName: "Schützenverein „Greif“ e. V. Blumenthal",
 };
+
+const CLUB_NAME_MAX = 200;
+
+function normalizeClubDisplayName(value) {
+  const t = String(value ?? "").trim();
+  if (!t) return UI_DEFAULTS.clubDisplayName;
+  return t.slice(0, CLUB_NAME_MAX);
+}
 
 export function getUiSettingsFilePath() {
   if (process.env.SCHEIBENANZEIGE_UI_SETTINGS_PATH) {
@@ -40,6 +50,9 @@ export function buildUiSettings() {
   if (Number.isFinite(sec) && sec >= 5 && sec <= 3600) {
     out.boardRotationIntervalSec = Math.round(sec);
   }
+  if (file.clubDisplayName != null && String(file.clubDisplayName).trim() !== "") {
+    out.clubDisplayName = normalizeClubDisplayName(file.clubDisplayName);
+  }
   return out;
 }
 
@@ -51,6 +64,7 @@ export function writeUiSettingsFile(partial) {
     throw new Error("boardRotationIntervalSec muss zwischen 5 und 3600 liegen");
   }
   next.boardRotationIntervalSec = Math.round(sec);
+  next.clubDisplayName = normalizeClubDisplayName(next.clubDisplayName);
   const p = getUiSettingsFilePath();
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, JSON.stringify(next, null, 2), "utf8");

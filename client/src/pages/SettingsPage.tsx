@@ -6,6 +6,7 @@ import {
   saveDbSettings,
   saveUiSettings,
 } from "../api";
+import { DEFAULT_CLUB_DISPLAY_NAME } from "../constants/defaults";
 import type { DbSettingsResponse } from "../types";
 
 type SettingsTab = "database" | "board";
@@ -24,6 +25,7 @@ export function SettingsPage() {
   const [busy, setBusy] = useState(false);
 
   const [uiRotationSec, setUiRotationSec] = useState("30");
+  const [uiClubName, setUiClubName] = useState(DEFAULT_CLUB_DISPLAY_NAME);
   const [uiSaveError, setUiSaveError] = useState<string | null>(null);
   const [uiSaveOk, setUiSaveOk] = useState(false);
   const [uiBusy, setUiBusy] = useState(false);
@@ -64,6 +66,9 @@ export function SettingsPage() {
         const u = await fetchUiSettings();
         if (!cancelled) {
           setUiRotationSec(String(u.boardRotationIntervalSec));
+          if (u.clubDisplayName?.trim()) {
+            setUiClubName(u.clubDisplayName.trim());
+          }
         }
       } catch {
         /* Standard */
@@ -106,9 +111,15 @@ export function SettingsPage() {
     setUiBusy(true);
     try {
       const sec = Number(uiRotationSec);
-      await saveUiSettings({ boardRotationIntervalSec: sec });
+      await saveUiSettings({
+        boardRotationIntervalSec: sec,
+        clubDisplayName: uiClubName.trim(),
+      });
       const u = await fetchUiSettings();
       setUiRotationSec(String(u.boardRotationIntervalSec));
+      if (u.clubDisplayName?.trim()) {
+        setUiClubName(u.clubDisplayName.trim());
+      }
       setUiSaveOk(true);
     } catch (err) {
       setUiSaveError(err instanceof Error ? err.message : String(err));
@@ -338,6 +349,18 @@ export function SettingsPage() {
           </p>
           <form className="settings-form" onSubmit={onSubmitUi}>
             <div className="settings-form-grid">
+              <label className="search-label">
+                Vereinsname (Sidebar &amp; Scheibenanzeige)
+                <input
+                  className="search-input"
+                  type="text"
+                  value={uiClubName}
+                  onChange={(e) => setUiClubName(e.target.value)}
+                  maxLength={200}
+                  autoComplete="organization"
+                  placeholder={DEFAULT_CLUB_DISPLAY_NAME}
+                />
+              </label>
               <label className="search-label">
                 Seitenwechsel (Sekunden)
                 <input

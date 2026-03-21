@@ -45,6 +45,7 @@ export async function fetchUiSettings(): Promise<UiSettingsResponse> {
 
 export async function saveUiSettings(body: {
   boardRotationIntervalSec: number;
+  clubDisplayName: string;
 }): Promise<void> {
   const r = await fetch("/api/settings/ui", {
     method: "PUT",

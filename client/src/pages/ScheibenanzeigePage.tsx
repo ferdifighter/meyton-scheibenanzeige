@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchBoard, fetchUiSettings } from "../api";
 import { BOARD_PAGE_SIZE } from "../constants/board";
+import { DEFAULT_CLUB_DISPLAY_NAME } from "../constants/defaults";
 import { TargetCard } from "../components/TargetCard";
 import type { ScheibeDetail } from "../types";
 
@@ -49,6 +50,9 @@ export function ScheibenanzeigePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const [rotationSec, setRotationSec] = useState(30);
+  const [clubDisplayName, setClubDisplayName] = useState(
+    DEFAULT_CLUB_DISPLAY_NAME
+  );
 
   const pageCount = useMemo(
     () => Math.max(1, Math.ceil(allItems.length / BOARD_PAGE_SIZE)),
@@ -68,6 +72,9 @@ export function ScheibenanzeigePage() {
     try {
       const s = await fetchUiSettings();
       setRotationSec(s.boardRotationIntervalSec);
+      if (s.clubDisplayName?.trim()) {
+        setClubDisplayName(s.clubDisplayName.trim());
+      }
     } catch {
       /* Standard 30 s */
     }
@@ -135,9 +142,7 @@ export function ScheibenanzeigePage() {
             ← Übersicht
           </Link>
           <h1>Scheibenanzeige</h1>
-          <p className="subtitle">
-            Schützenverein „Greif“ e. V. Blumenthal
-          </p>
+          <p className="subtitle">{clubDisplayName}</p>
         </div>
         <HeaderClock />
       </header>

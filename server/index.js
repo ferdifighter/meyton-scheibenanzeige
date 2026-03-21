@@ -139,6 +139,7 @@ app.get("/api/settings/ui", (_req, res) => {
   res.json({
     boardRotationIntervalSec: s.boardRotationIntervalSec,
     boardPageSize: 8,
+    clubDisplayName: s.clubDisplayName,
     userDataDirectory: process.env.SCHEIBENANZEIGE_USER_DATA_DIR || null,
   });
 });
@@ -148,12 +149,15 @@ app.put("/api/settings/ui", (req, res) => {
     const b = req.body ?? {};
     writeUiSettingsFile({
       boardRotationIntervalSec: Number(b.boardRotationIntervalSec),
+      clubDisplayName:
+        b.clubDisplayName != null ? String(b.clubDisplayName) : undefined,
     });
     const s = buildUiSettings();
     res.json({
       ok: true,
       boardRotationIntervalSec: s.boardRotationIntervalSec,
       boardPageSize: 8,
+      clubDisplayName: s.clubDisplayName,
     });
   } catch (e) {
     res.status(400).json({ error: String(e.message) });

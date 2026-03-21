@@ -39,7 +39,11 @@ export function TargetCard({ detail, onSelect, selected }: Props) {
       </div>
 
       <div className="target-card-face">
-        <IssfTargetFace treffer={detail.treffer} variant="card" />
+        <IssfTargetFace
+          treffer={detail.treffer}
+          variant="card"
+          discipline={String(s.Disziplin)}
+        />
         <div
           className="target-card-last-treffer-num"
           title="Nummer des zuletzt gewerteten Schusses (Treffer)"

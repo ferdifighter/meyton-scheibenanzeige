@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
+import { fetchUiSettings } from "../../api";
+import { DEFAULT_CLUB_DISPLAY_NAME } from "../../constants/defaults";
 
 const FALLBACK_VERSION = import.meta.env.VITE_APP_VERSION;
 
 function AppLayout() {
   const [appVersion, setAppVersion] = useState(FALLBACK_VERSION);
+  const [clubDisplayName, setClubDisplayName] = useState(
+    DEFAULT_CLUB_DISPLAY_NAME
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -29,6 +34,29 @@ function AppLayout() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadClub() {
+      try {
+        const u = await fetchUiSettings();
+        if (!cancelled && u.clubDisplayName?.trim()) {
+          setClubDisplayName(u.clubDisplayName.trim());
+        }
+      } catch {
+        /* DEFAULT_CLUB_DISPLAY_NAME */
+      }
+    }
+    void loadClub();
+    const onVis = () => {
+      if (document.visibilityState === "visible") void loadClub();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
   return (
     <div className="app-root app-layout-with-sidebar">
       <aside className="app-sidebar" aria-label="Hauptnavigation">
@@ -36,9 +64,7 @@ function AppLayout() {
           <Link to="/" className="app-sidebar-title">
             Schießstand-Anzeigen
           </Link>
-          <span className="app-sidebar-club">
-            Schützenverein „Greif“ e. V. Blumenthal
-          </span>
+          <span className="app-sidebar-club">{clubDisplayName}</span>
         </div>
         <nav className="app-sidebar-nav" aria-label="Seiten">
           <NavLink

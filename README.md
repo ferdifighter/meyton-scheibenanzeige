@@ -119,8 +119,8 @@ Nach `npm run build:client` legt der Server bei Start die gebaute Oberfläche au
 - `GET /api/settings/db` – aktuelle DB-Verbindung (ohne Klartext-Passwort) inkl. Meyton-Standardwerte; optional **`userDataDirectory`** (Desktop/AppImage)
 - `PUT /api/settings/db` – Verbindung speichern (JSON-Datei); Body: `host`, `port`, `user`, `database`, optional `password` (leer = Passwort unverändert)
 - `DELETE /api/settings/db` – gespeicherte Datei entfernen → wieder Meyton-Defaults (und ggf. `.env`)
-- `GET /api/settings/ui` – `boardRotationIntervalSec` (Standard **30**), `boardPageSize` (**8**); optional **`userDataDirectory`** (Desktop/AppImage)
-- `PUT /api/settings/ui` – Body: `boardRotationIntervalSec` (5–3600 Sekunden)
+- `GET /api/settings/ui` – `boardRotationIntervalSec` (Standard **30**), `boardPageSize` (**8**), **`clubDisplayName`** (Vereinsname für Sidebar & Scheibenanzeige); optional **`userDataDirectory`** (Desktop/AppImage)
+- `PUT /api/settings/ui` – Body: `boardRotationIntervalSec` (5–3600), **`clubDisplayName`** (max. 200 Zeichen; leer → Standardname)
 - `GET /api/disziplinen` – Distinct **Disziplin** (optional **`stand`** = eine Standnummer → nur Disziplinen auf diesem Stand)
 - `GET /api/stande` – Distinct **StandNr** (optional **`disziplin`** → nur Stände mit dieser Disziplin)
 - `GET /api/scheiben?…&stand=…&disziplin=…` – Liste; **`stand`** = eine Standnummer (`StandNr = ?`); **`latestPerStand=0`** = alle passenden Zeilen; Limit max. **5000**
@@ -152,4 +152,5 @@ Hilfe-Endpoint: `GET /api/meta` (Kurzinfo zu den Defaults, Feld **`version`**).
 
 ## Hinweis Scheibenbild
 
-Die Scheibengrafik nutzt die üblichen **Ringdurchmesser** für die 10-m-Luftgewehrscheibe (Außen 45,5 mm; Ringe 2–9 je 5 mm; Innenzehner 0,5 mm; weiße Ringe 1–3, schwarzer Spiegel ab Ring 4).
+- **Luftgewehr** (Standard): Ringmaße wie **ISSF 10 m Luftgewehr** (u. a. Außen 45,5 mm; Ringe 2–9 je 5 mm; Innenzehner 0,5 mm; weiße Ringe 1–3, schwarzer Spiegel ab Ring 4).
+- **Luftpistole**: Wenn die Disziplin mit **LP** beginnt (Meyton-Kürzel) oder „Luftpistole“ / „air pistol“ enthält, wird die **ISSF 10 m Luftpistolenscheibe** gezeichnet; beginnt sie mit **LG**, gilt **Luftgewehr** (Außenring 1 Ø 155,5 mm; Ringe 2–6 je 15 mm; Ring 7–9; Ring 10 Ø 11,5 mm; Innenzehner Ø 5 mm; **schwarze Trefffläche** für die Wertungsringe 7–10, vgl. [ISSF 10 meter air pistol](https://en.wikipedia.org/wiki/ISSF_10_meter_air_pistol)).
