@@ -5,6 +5,10 @@
   "description": "Scheibenanzeige – Desktop (Electron + AppImage)",
   "author": "Schützenverein Greif e.V. Blumenthal",
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ferdifighter/meyton-scheibenanzeige.git"
+  },
   "main": "electron/main.cjs",
   "scripts": {
     "install:all": "npm install --prefix server && npm install --prefix client && npm install",

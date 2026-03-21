@@ -1,6 +1,20 @@
 # Scheibenanzeige
 
+**GitHub:** [ferdifighter/meyton-scheibenanzeige](https://github.com/ferdifighter/meyton-scheibenanzeige)
+
 React-Webanwendung für die **Meyton SSMDB2**: Scheiben pro Schütze, **Disziplin**, **Serien** (pro Stellung) und **Gesamtergebnis** in Zehntel-Ringen, plus eine **Trefferlage** aus den Koordinaten der Tabelle `Treffer`.
+
+## Repository auf GitHub anlegen & pushen
+
+Falls das Repository noch nicht existiert: [Neues Repository](https://github.com/new?name=meyton-scheibenanzeige) mit Namen **`meyton-scheibenanzeige`** unter [@ferdifighter](https://github.com/ferdifighter) anlegen (**öffentlich**). **Kein** README, keine `.gitignore` und keine Lizenz hinzufügen (dieses Projekt bringt den ersten Commit mit).
+
+Anschließend lokal (mit [Personal Access Token](https://github.com/settings/tokens) für HTTPS oder SSH-Key):
+
+```bash
+cd /pfad/zu/Scheibenanzeige
+git remote -v   # origin → https://github.com/ferdifighter/meyton-scheibenanzeige.git
+git push -u origin main
+```
 
 ## Voraussetzungen
 
