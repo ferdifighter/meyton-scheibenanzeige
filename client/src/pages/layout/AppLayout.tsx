@@ -62,7 +62,7 @@ function AppLayout() {
       <aside className="app-sidebar" aria-label="Hauptnavigation">
         <div className="app-sidebar-brand">
           <Link to="/" className="app-sidebar-title">
-            Schießstand-Anzeigen
+            Meyton Wettkampfzentrale
           </Link>
           <span className="app-sidebar-club">{clubDisplayName}</span>
         </div>

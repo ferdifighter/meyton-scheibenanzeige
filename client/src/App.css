@@ -1530,6 +1530,166 @@ button.target-card {
   align-items: flex-end;
 }
 
+.auswertung-compact-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0 0 0.65rem;
+}
+
+.auswertung-quick-wettkampf {
+  min-width: min(26rem, 72vw);
+}
+
+.auswertung-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.auswertung-modal {
+  width: min(500px, 100%);
+  max-height: min(90vh, 900px);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.auswertung-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.auswertung-modal-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.auswertung-pdf-modal {
+  width: min(1100px, 100%);
+}
+
+.auswertung-pdf-actions {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.auswertung-pdf-body {
+  padding: 0.75rem 0.9rem 0.9rem;
+}
+
+.auswertung-pdf-frame {
+  width: 100%;
+  height: min(78vh, 860px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.auswertung-modal .protokoll-toolbar {
+  margin: 0;
+  padding: 0.75rem 0.9rem 0.9rem;
+}
+
+.auswertung-filter-form {
+  padding: 0.75rem 0.9rem 0.9rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.auswertung-form-row {
+  display: grid;
+  grid-template-columns: 9.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.auswertung-filter-form .protokoll-filter-select {
+  width: 100%;
+  max-width: none;
+}
+
+.auswertung-form-row .auswertung-check {
+  justify-self: start;
+}
+
+.auswertung-period-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.auswertung-modal .auswertung-disc-section {
+  margin: 0;
+  border: 0;
+  border-radius: 0 0 12px 12px;
+}
+
+.auswertung-stats-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0 0 0.85rem;
+}
+
+.auswertung-stat-card {
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.auswertung-stat-label {
+  margin: 0;
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.auswertung-stat-value {
+  margin: 0.2rem 0 0;
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+.auswertung-stat-value-small {
+  font-size: 0.98rem;
+  line-height: 1.28;
+}
+
+.auswertung-stat-date-line {
+  display: block;
+}
+
+.auswertung-stat-sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 980px) {
+  .auswertung-stats-cards {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
 .auswertung-check {
   display: inline-flex;
   align-items: center;
@@ -1609,6 +1769,10 @@ button.target-card {
 
 .auswertung-table-wrap {
   overflow-x: auto;
+}
+
+.auswertung-subgroup + .auswertung-subgroup {
+  margin-top: 1.5rem;
 }
 
 .auswertung-table th,
@@ -1822,6 +1986,22 @@ button.target-card {
     page-break-inside: auto;
   }
 
+  /* Verhindert "verwaiste" Disziplin-Titel am Seitenende */
+  .auswertung-subgroup {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .auswertung-subgroup > .auswertung-group-title {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+
+  .auswertung-subgroup > .auswertung-table-wrap {
+    break-before: avoid-page;
+    page-break-before: avoid;
+  }
+
   .auswertung-table thead {
     break-inside: avoid;
   }
@@ -1841,6 +2021,14 @@ button.target-card {
   }
 
   .auswertung-table-wrap {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .protokoll-table-wrap {
+    max-height: none !important;
+    height: auto !important;
     overflow: visible !important;
   }
 

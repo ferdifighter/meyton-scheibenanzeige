@@ -41,15 +41,12 @@ function envOverrides() {
   const o = {};
   if (process.env.DB_HOST) o.host = process.env.DB_HOST;
   if (process.env.DB_PORT != null && String(process.env.DB_PORT).trim() !== "") {
-    o.port = Number(process.env.DB_PORT);
+    const p = Number(process.env.DB_PORT);
+    if (Number.isFinite(p) && p > 0) o.port = p;
   }
   if (process.env.DB_USER) o.user = process.env.DB_USER;
-  if (
-    process.env.DB_PASSWORD !== undefined &&
-    String(process.env.DB_PASSWORD) !== ""
-  ) {
-    o.password = process.env.DB_PASSWORD;
-  }
+  // Wichtig: auch ein bewusst leeres Passwort aus .env muss den Default überschreiben.
+  if (process.env.DB_PASSWORD !== undefined) o.password = process.env.DB_PASSWORD;
   if (process.env.DB_NAME) o.database = process.env.DB_NAME;
   return o;
 }
@@ -71,8 +68,9 @@ export function buildDbConfig() {
   if (file.user != null && String(file.user).trim() !== "") {
     out.user = String(file.user).trim();
   }
-  if (file.password != null && String(file.password) !== "") {
-    out.password = String(file.password);
+  // Auch leerer String ist ein valider, expliziter Wert.
+  if (Object.prototype.hasOwnProperty.call(file, "password")) {
+    out.password = file.password == null ? "" : String(file.password);
   }
   if (file.database != null && String(file.database).trim() !== "") {
     out.database = String(file.database).trim();

@@ -103,21 +103,54 @@ export async function fetchScheiben(
   }
   const r = await fetch(`/api/scheiben?${params}`);
   if (!r.ok) throw new Error(await r.text());
-  return r.json();
+  const rows: ScheibeRow[] = await r.json();
+  // Fallback: wenn „nur heute“ leer ist, automatisch auf alle Tage erweitern.
+  if (rows.length === 0 && !params.has("allDates")) {
+    const p2 = new URLSearchParams(params);
+    p2.set("allDates", "1");
+    const r2 = await fetch(`/api/scheiben?${p2}`);
+    if (!r2.ok) throw new Error(await r2.text());
+    return r2.json();
+  }
+  return rows;
 }
 
 /** Distinct Disziplin-Werte; optional nach Stand eingeschränkt. */
 export async function fetchDisziplinen(opts?: {
   stand?: number;
+  year?: number;
+  wettkampf?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }): Promise<string[]> {
   const params = new URLSearchParams();
   if (opts?.stand != null && opts.stand > 0) {
     params.set("stand", String(opts.stand));
   }
+  if (opts?.year != null && Number.isFinite(opts.year)) {
+    params.set("year", String(opts.year));
+  }
+  if (opts?.wettkampf?.trim()) {
+    params.set("starterliste", opts.wettkampf.trim());
+  }
+  if (opts?.dateFrom?.trim()) {
+    params.set("dateFrom", opts.dateFrom.trim());
+  }
+  if (opts?.dateTo?.trim()) {
+    params.set("dateTo", opts.dateTo.trim());
+  }
   const q = params.toString();
   const r = await fetch(q ? `/api/disziplinen?${q}` : "/api/disziplinen");
   if (!r.ok) throw new Error(await r.text());
-  const rows: { Disziplin: string }[] = await r.json();
+  let rows: { Disziplin: string }[] = await r.json();
+  if (rows.length === 0 && !params.has("allDates")) {
+    const p2 = new URLSearchParams(params);
+    p2.set("allDates", "1");
+    const q2 = p2.toString();
+    const r2 = await fetch(q2 ? `/api/disziplinen?${q2}` : "/api/disziplinen");
+    if (!r2.ok) throw new Error(await r2.text());
+    rows = await r2.json();
+  }
   return rows
     .map((x) => String(x.Disziplin ?? "").trim())
     .filter(Boolean);
@@ -126,14 +159,38 @@ export async function fetchDisziplinen(opts?: {
 /** Distinct StandNr; optional nach Disziplin eingeschränkt. */
 export async function fetchStaende(opts?: {
   disziplin?: string;
+  year?: number;
+  wettkampf?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }): Promise<number[]> {
   const params = new URLSearchParams();
   const d = opts?.disziplin?.trim();
   if (d) params.set("disziplin", d);
+  if (opts?.year != null && Number.isFinite(opts.year)) {
+    params.set("year", String(opts.year));
+  }
+  if (opts?.wettkampf?.trim()) {
+    params.set("starterliste", opts.wettkampf.trim());
+  }
+  if (opts?.dateFrom?.trim()) {
+    params.set("dateFrom", opts.dateFrom.trim());
+  }
+  if (opts?.dateTo?.trim()) {
+    params.set("dateTo", opts.dateTo.trim());
+  }
   const q = params.toString();
   const r = await fetch(q ? `/api/stande?${q}` : "/api/stande");
   if (!r.ok) throw new Error(await r.text());
-  const rows: { StandNr: number }[] = await r.json();
+  let rows: { StandNr: number }[] = await r.json();
+  if (rows.length === 0 && !params.has("allDates")) {
+    const p2 = new URLSearchParams(params);
+    p2.set("allDates", "1");
+    const q2 = p2.toString();
+    const r2 = await fetch(q2 ? `/api/stande?${q2}` : "/api/stande");
+    if (!r2.ok) throw new Error(await r2.text());
+    rows = await r2.json();
+  }
   return rows
     .map((x) => Number(x.StandNr))
     .filter((n) => Number.isFinite(n));
@@ -147,7 +204,15 @@ export async function fetchBoard(
   if (q.trim()) params.set("q", q.trim());
   const r = await fetch(`/api/board?${params}`);
   if (!r.ok) throw new Error(await r.text());
-  return r.json();
+  const out: { items: ScheibeDetail[] } = await r.json();
+  if (out.items.length === 0 && !params.has("allDates")) {
+    const p2 = new URLSearchParams(params);
+    p2.set("allDates", "1");
+    const r2 = await fetch(`/api/board?${p2}`);
+    if (!r2.ok) throw new Error(await r2.text());
+    return r2.json();
+  }
+  return out;
 }
 
 export async function fetchScheibe(id: string | number): Promise<ScheibeDetail> {
@@ -166,6 +231,10 @@ export async function fetchAuswertung(opts: {
   /** alle Tage statt nur heute */
   allDates?: boolean;
   stand?: number;
+  year?: number;
+  wettkampf?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }): Promise<AuswertungResponse> {
   const params = new URLSearchParams();
   params.set("rankBy", opts.rankBy);
@@ -178,7 +247,75 @@ export async function fetchAuswertung(opts: {
   if (opts.stand != null && opts.stand > 0) {
     params.set("stand", String(opts.stand));
   }
+  if (opts.year != null && Number.isFinite(opts.year)) {
+    params.set("year", String(opts.year));
+  }
+  if (opts.wettkampf?.trim()) {
+    params.set("starterliste", opts.wettkampf.trim());
+  }
+  if (opts.dateFrom?.trim()) {
+    params.set("dateFrom", opts.dateFrom.trim());
+  }
+  if (opts.dateTo?.trim()) {
+    params.set("dateTo", opts.dateTo.trim());
+  }
   const r = await fetch(`/api/auswertung?${params}`);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+export async function fetchAuswertungYears(): Promise<number[]> {
+  const r = await fetch("/api/auswertung/jahre");
+  if (!r.ok) throw new Error(await r.text());
+  const rows: number[] = await r.json();
+  return rows.filter((y) => Number.isFinite(Number(y))).map((y) => Number(y));
+}
+
+export async function fetchAuswertungWettkaempfe(opts?: {
+  year?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}): Promise<string[]> {
+  const params = new URLSearchParams();
+  if (opts?.year != null && Number.isFinite(opts.year)) {
+    params.set("year", String(opts.year));
+  }
+  if (opts?.dateFrom?.trim()) {
+    params.set("dateFrom", opts.dateFrom.trim());
+  }
+  if (opts?.dateTo?.trim()) {
+    params.set("dateTo", opts.dateTo.trim());
+  }
+  const q = params.toString();
+  const r = await fetch(
+    q ? `/api/auswertung/wettkaempfe?${q}` : "/api/auswertung/wettkaempfe"
+  );
+  if (!r.ok) throw new Error(await r.text());
+  const rows: string[] = await r.json();
+  return rows.map((x) => String(x).trim()).filter(Boolean);
+}
+
+export async function fetchAuswertungStats(opts?: {
+  year?: number;
+  wettkampf?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}): Promise<{ starts: number; shooters: number }> {
+  const params = new URLSearchParams();
+  if (opts?.year != null && Number.isFinite(opts.year)) {
+    params.set("year", String(opts.year));
+  }
+  if (opts?.wettkampf?.trim()) {
+    params.set("starterliste", opts.wettkampf.trim());
+  }
+  if (opts?.dateFrom?.trim()) {
+    params.set("dateFrom", opts.dateFrom.trim());
+  }
+  if (opts?.dateTo?.trim()) {
+    params.set("dateTo", opts.dateTo.trim());
+  }
+  const q = params.toString();
+  const r = await fetch(q ? `/api/auswertung/stats?${q}` : "/api/auswertung/stats");
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }

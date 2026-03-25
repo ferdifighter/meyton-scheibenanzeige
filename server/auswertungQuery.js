@@ -68,9 +68,10 @@ export function assignPlatzierungen(rows, defaultRank, perDisciplin = {}) {
   /** @type {Map<string, object[]>} */
   const groups = new Map();
   for (const r of rows) {
+    const w = String(r.WettkampfDisplay ?? "").trim() || "Wettkampf —";
     const d = String(r.DisziplinNorm ?? r.Disziplin ?? "").trim();
     const k = String(r.KlasseDisplay ?? "").trim() || "—";
-    const key = `${d}\0${k}`;
+    const key = `${w}\0${d}\0${k}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(r);
   }
@@ -115,6 +116,11 @@ export function assignPlatzierungen(rows, defaultRank, perDisciplin = {}) {
   }
 
   out.sort((a, b) => {
+    const w = String(a.WettkampfDisplay ?? "").localeCompare(
+      String(b.WettkampfDisplay ?? ""),
+      "de"
+    );
+    if (w !== 0) return w;
     const c = String(a.DisziplinNorm ?? "").localeCompare(
       String(b.DisziplinNorm ?? ""),
       "de"
@@ -155,6 +161,13 @@ export function buildAuswertungBaseSql(query) {
       Scheiben.TotalRing01 AS TotalRing01,
       Scheiben.BesterTeiler01 AS BesterTeiler01,
       Scheiben.Trefferzahl AS Trefferzahl,
+      Scheiben.Zeitstempel AS Zeitstempel,
+      COALESCE(
+        NULLIF(TRIM(COALESCE(Scheiben.Rangliste, '')), ''),
+        NULLIF(TRIM(COALESCE(Scheiben.Starterliste, '')), ''),
+        'Wettkampf —'
+      ) AS WettkampfDisplay,
+      YEAR(Scheiben.Zeitstempel) AS Jahr,
       TRIM(COALESCE(Scheiben.Disziplin,'')) AS DisziplinNorm,
       COALESCE(NULLIF(TRIM(COALESCE(Scheiben.Klasse,'')),''), '—') AS KlasseDisplay
     FROM Scheiben

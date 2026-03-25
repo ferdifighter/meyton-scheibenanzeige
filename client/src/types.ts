@@ -76,6 +76,8 @@ export type ScheibeDetail = {
 export type AuswertungRow = {
   ScheibenID: number;
   Platz: number;
+  WettkampfDisplay: string;
+  Jahr: number;
   Nachname: string;
   Vorname: string;
   StandNr: number;
@@ -87,6 +89,7 @@ export type AuswertungRow = {
   Trefferzahl: number;
   DisziplinNorm: string;
   KlasseDisplay: string;
+  Zeitstempel: string;
 };
 
 export type AuswertungResponse = {

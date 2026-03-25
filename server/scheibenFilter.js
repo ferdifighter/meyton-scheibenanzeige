@@ -4,10 +4,37 @@
  * @param {NodeJS.ProcessEnv} env
  */
 export function parseScheibenFilters(query = {}, env = process.env) {
+  const isIsoDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const dateRaw = String(query.date ?? "").trim();
+  let dateFromRaw = String(query.dateFrom ?? "").trim();
+  let dateToRaw = String(query.dateTo ?? "").trim();
+  const date = isIsoDate(dateRaw) ? dateRaw : "";
+  if (!dateFromRaw && date) dateFromRaw = date;
+  if (!dateToRaw && date) dateToRaw = date;
+  const dateFrom = isIsoDate(dateFromRaw) ? dateFromRaw : "";
+  const dateTo = isIsoDate(dateToRaw) ? dateToRaw : "";
+  const normalizedDateFrom =
+    dateFrom && dateTo && dateFrom > dateTo ? dateTo : dateFrom;
+  const normalizedDateTo =
+    dateFrom && dateTo && dateFrom > dateTo ? dateFrom : dateTo;
+
+  const yearRaw = String(query.year ?? "").trim();
+  const yearParsed = parseInt(yearRaw, 10);
+  const year =
+    yearRaw !== "" &&
+    Number.isFinite(yearParsed) &&
+    yearParsed >= 2000 &&
+    yearParsed <= 2100
+      ? yearParsed
+      : null;
+
   const allDates =
     query.allDates === "1" ||
     query.allDates === "true" ||
-    env.SCHEIBEN_ALL_DATES === "1";
+    env.SCHEIBEN_ALL_DATES === "1" ||
+    year != null ||
+    normalizedDateFrom !== "" ||
+    normalizedDateTo !== "";
 
   const standsStr = String(query.stands || env.ACTIVE_STAND_NUMBERS || "").trim();
   const stands = standsStr
@@ -40,6 +67,9 @@ export function parseScheibenFilters(query = {}, env = process.env) {
 
   return {
     allDates,
+    dateFrom: normalizedDateFrom,
+    dateTo: normalizedDateTo,
+    year,
     stands,
     starterliste,
     latestPerStand,
@@ -62,7 +92,7 @@ export function windowOrderLatestPerStand(rankBy) {
 
 /**
  * @param {string} alias
- * @param {{ allDates: boolean, stands: number[], starterliste: string, disziplin?: string, stand?: number | null }} f
+ * @param {{ allDates: boolean, dateFrom?: string, dateTo?: string, year?: number | null, stands: number[], starterliste: string, disziplin?: string, stand?: number | null }} f
  */
 export function buildWhereExtras(alias, f) {
   const t = alias;
@@ -72,6 +102,18 @@ export function buildWhereExtras(alias, f) {
   if (!f.allDates) {
     parts.push(`DATE(${t}.Zeitstempel) = CURDATE()`);
   }
+  if (f.dateFrom) {
+    parts.push(`DATE(${t}.Zeitstempel) >= ?`);
+    params.push(f.dateFrom);
+  }
+  if (f.dateTo) {
+    parts.push(`DATE(${t}.Zeitstempel) <= ?`);
+    params.push(f.dateTo);
+  }
+  if (f.year != null) {
+    parts.push(`YEAR(${t}.Zeitstempel) = ?`);
+    params.push(f.year);
+  }
 
   if (f.stands.length > 0) {
     const ph = f.stands.map(() => "?").join(",");
@@ -80,8 +122,8 @@ export function buildWhereExtras(alias, f) {
   }
 
   if (f.starterliste) {
-    parts.push(`${t}.Starterliste LIKE ?`);
-    params.push(`%${f.starterliste}%`);
+    parts.push(`(COALESCE(${t}.Rangliste, '') LIKE ? OR COALESCE(${t}.Starterliste, '') LIKE ?)`);
+    params.push(`%${f.starterliste}%`, `%${f.starterliste}%`);
   }
 
   if (f.disziplin) {

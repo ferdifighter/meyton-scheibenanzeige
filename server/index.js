@@ -1,6 +1,12 @@
 import dotenv from "dotenv";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Immer die Server-.env laden, auch wenn der Prozess aus einem anderen CWD gestartet wurde.
+dotenv.config({ path: path.join(__dirname, ".env") });
 if (process.env.SCHEIBENANZEIGE_ENV_PATH) {
   dotenv.config({
     path: process.env.SCHEIBENANZEIGE_ENV_PATH,
@@ -8,9 +14,6 @@ if (process.env.SCHEIBENANZEIGE_ENV_PATH) {
   });
 }
 
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express from "express";
 import mysql from "mysql2/promise";
@@ -35,7 +38,6 @@ import {
 } from "./dbConfig.js";
 import { buildUiSettings, writeUiSettingsFile } from "./uiSettings.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = path.join(__dirname, "../client/dist");
 
 const APP_VERSION = (() => {
@@ -256,6 +258,108 @@ app.get("/api/auswertung", async (req, res) => {
     const [rows] = await pool.query(sql, params);
     const ranked = assignPlatzierungen(rows, rankBy, rankByPerDisciplin);
     res.json({ rankBy, rankByPerDisciplin, rows: ranked });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message) });
+  }
+});
+
+/** Distinct Jahre für Auswertung (mit aktiver-Scheibe-Filterlogik). */
+app.get("/api/auswertung/jahre", async (req, res) => {
+  const q = { ...req.query };
+  delete q.year;
+  q.allDates = "1";
+  const f = parseScheibenFilters(q, process.env);
+  const { sql: extraWhere, params } = buildWhereExtras("Scheiben", f);
+  const baseWhere = `WHERE ${whereActiveScheibe("Scheiben")} ${extraWhere}`;
+  const sql = `
+    SELECT DISTINCT YEAR(Scheiben.Zeitstempel) AS Jahr
+    FROM Scheiben
+    ${baseWhere}
+    AND YEAR(Scheiben.Zeitstempel) IS NOT NULL
+    ORDER BY Jahr DESC
+  `;
+  try {
+    const [rows] = await pool.query(sql, params);
+    res.json(
+      rows
+        .map((r) => Number(r.Jahr))
+        .filter((y) => Number.isFinite(y) && y >= 2000 && y <= 2100)
+    );
+  } catch (e) {
+    res.status(500).json({ error: String(e.message) });
+  }
+});
+
+/** Distinct Wettkämpfe (primär Rangliste, Fallback Starterliste). */
+app.get("/api/auswertung/wettkaempfe", async (req, res) => {
+  const q = { ...req.query };
+  delete q.starterliste;
+  q.allDates = "1";
+  const f = parseScheibenFilters(q, process.env);
+  const { sql: extraWhere, params } = buildWhereExtras("Scheiben", f);
+  const baseWhere = `WHERE ${whereActiveScheibe("Scheiben")} ${extraWhere}`;
+  const sql = `
+    SELECT DISTINCT
+      COALESCE(
+        NULLIF(TRIM(COALESCE(Scheiben.Rangliste, '')), ''),
+        NULLIF(TRIM(COALESCE(Scheiben.Starterliste, '')), '')
+      ) AS WettkampfDisplay
+    FROM Scheiben
+    ${baseWhere}
+    AND COALESCE(
+      NULLIF(TRIM(COALESCE(Scheiben.Rangliste, '')), ''),
+      NULLIF(TRIM(COALESCE(Scheiben.Starterliste, '')), '')
+    ) IS NOT NULL
+    ORDER BY WettkampfDisplay ASC
+  `;
+  try {
+    const [rows] = await pool.query(sql, params);
+    res.json(
+      rows
+        .map((r) => String(r.WettkampfDisplay ?? "").trim())
+        .filter(Boolean)
+    );
+  } catch (e) {
+    res.status(500).json({ error: String(e.message) });
+  }
+});
+
+/** Kennzahlen für einen Wettkampf (z. B. Starts und eindeutige Schützen). */
+app.get("/api/auswertung/stats", async (req, res) => {
+  const q = { ...req.query };
+  delete q.disziplin;
+  delete q.stand;
+  delete q.standNr;
+  q.latestPerStand = "0";
+  q.allDates = "1";
+  const f = parseScheibenFilters(q, process.env);
+  const { sql: extraWhere, params } = buildWhereExtras("Scheiben", f);
+  const baseWhere = `WHERE ${whereActiveScheibe("Scheiben")} ${extraWhere}`;
+  const sql = `
+    SELECT
+      COUNT(*) AS starts,
+      COUNT(
+        DISTINCT COALESCE(
+          NULLIF(CAST(Scheiben.SportpassID AS CHAR), ''),
+          CONCAT(
+            'name:',
+            TRIM(COALESCE(Scheiben.Nachname, '')),
+            '|',
+            TRIM(COALESCE(Scheiben.Vorname, '')),
+            '|',
+            COALESCE(CAST(Scheiben.VereinsID AS CHAR), '')
+          )
+        )
+      ) AS shooters
+    FROM Scheiben
+    ${baseWhere}
+  `;
+  try {
+    const [[row]] = await pool.query(sql, params);
+    res.json({
+      starts: Number(row?.starts ?? 0),
+      shooters: Number(row?.shooters ?? 0),
+    });
   } catch (e) {
     res.status(500).json({ error: String(e.message) });
   }
