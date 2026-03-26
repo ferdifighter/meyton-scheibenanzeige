@@ -2,6 +2,18 @@
 
 Alle nennenswerten Änderungen an diesem Projekt werden in dieser Datei dokumentiert.
 
+## [1.5.0] - 2026-03-25
+
+### Added
+- Integrierter DOCX-Editor für Urkundenvorlagen direkt in der Anwendung (Dialog aus der Vorlagenkarte).
+- Deutsche Übersetzungen für den Editor inkl. Mapping-Datei für Toolbar-/Dialogtexte.
+- Erweiterte Urkunden-Vorlagenverwaltung mit strukturiertem Ablauf und stabiler Vorschau-/Druckstrecke.
+
+### Changed
+- Urkunden-Toolbar visuell an das Original-Layout des eingesetzten Editors angenähert.
+- CSS-Feinschliff für Toolbar-Interaktionen: konsistente Icon-Darstellung, Dropdown-Verhalten und Scroll-Container.
+- Rahmen bei Toolbar-Icons und Dropdown-Triggern entfernt, damit die Bedienoberfläche ruhiger und klarer wirkt.
+
 ## [1.4.0] - 2026-03-25
 
 ### Added

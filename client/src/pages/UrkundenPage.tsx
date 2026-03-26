@@ -1,5 +1,7 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from "react";
 import { renderAsync } from "docx-preview";
+import type { DocxEditorRef } from "@eigenpal/docx-js-editor";
+import "@eigenpal/docx-js-editor/styles.css";
 import {
   deleteUrkundenTemplate,
   downloadUrkundenPdf,
@@ -19,6 +21,12 @@ import {
   type UrkundenSettings,
   uploadUrkundenTemplate,
 } from "../api";
+import { mountDocxEditorGerman } from "../i18n/docxEditorDe";
+
+const DocxEditor = lazy(async () => {
+  const mod = await import("@eigenpal/docx-js-editor");
+  return { default: mod.DocxEditor };
+});
 
 const DEFAULT_SETTINGS: UrkundenSettings = {
   rankFrom: 1,
@@ -117,6 +125,10 @@ export function UrkundenPage() {
   const [placeholders, setPlaceholders] = useState<string[]>([]);
   const [showPlaceholderDialog, setShowPlaceholderDialog] = useState(false);
   const [deleteTemplateName, setDeleteTemplateName] = useState<string | null>(null);
+  const [editTemplateName, setEditTemplateName] = useState<string | null>(null);
+  const [editorBuffer, setEditorBuffer] = useState<ArrayBuffer | null>(null);
+  const [editorLoading, setEditorLoading] = useState(false);
+  const [editorBusy, setEditorBusy] = useState(false);
   const [profiles, setProfiles] = useState<AuswertungProfileSummary[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [outputMode, setOutputMode] = useState<"single" | "perCertificate">("single");
@@ -131,7 +143,10 @@ export function UrkundenPage() {
   const [busy, setBusy] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [templatesRevision, setTemplatesRevision] = useState(0);
   const previewDocxRef = useRef<HTMLDivElement | null>(null);
+  const editorRef = useRef<DocxEditorRef | null>(null);
+  const editorHostRef = useRef<HTMLDivElement | null>(null);
   const foundPlaceholders = new Set(placeholders);
   const orderedTemplates = useMemo(
     () => [...availableTemplateNames].sort((a, b) => a.localeCompare(b, "de")),
@@ -197,6 +212,20 @@ export function UrkundenPage() {
     [previewPdfUrl]
   );
 
+  useEffect(() => {
+    if (!editTemplateName || !editorHostRef.current) return;
+    return mountDocxEditorGerman(editorHostRef.current);
+  }, [editTemplateName, editorBuffer]);
+
+  useEffect(() => {
+    const cls = "docx-editor-open";
+    if (editTemplateName) document.body.classList.add(cls);
+    else document.body.classList.remove(cls);
+    return () => {
+      document.body.classList.remove(cls);
+    };
+  }, [editTemplateName]);
+
   async function onTemplateUpload(file: File | null) {
     if (!file) return;
     setBusy(true);
@@ -207,6 +236,7 @@ export function UrkundenPage() {
       setTemplateName(r.template.name);
       setAvailableTemplateNames(r.template.availableNames ?? []);
       setPlaceholders(r.template.placeholders ?? []);
+      setTemplatesRevision((v) => v + 1);
       setUploadTemplateName("");
       setInfo("Vorlage erfolgreich hochgeladen.");
     } catch (e) {
@@ -226,6 +256,7 @@ export function UrkundenPage() {
       setTemplateName(r.template.name);
       setAvailableTemplateNames(r.template.availableNames ?? []);
       setPlaceholders(r.template.placeholders ?? []);
+      setTemplatesRevision((v) => v + 1);
       setInfo(`Vorlage aktiv: ${r.template.name}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -240,6 +271,7 @@ export function UrkundenPage() {
     try {
       const out = await fetchUrkundenTemplates();
       setAvailableTemplateNames(out.names ?? []);
+      setTemplatesRevision((v) => v + 1);
       if (out.selectedName) await onSelectTemplate(out.selectedName);
       else {
         setTemplateName(null);
@@ -259,6 +291,7 @@ export function UrkundenPage() {
     try {
       const out = await deleteUrkundenTemplate(name);
       setAvailableTemplateNames(out.templates?.names ?? []);
+      setTemplatesRevision((v) => v + 1);
       const nextSelected = out.templates?.selectedName ?? null;
       setTemplateName(nextSelected);
       if (nextSelected) {
@@ -271,6 +304,55 @@ export function UrkundenPage() {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onOpenTemplateEditor(name: string) {
+    setEditorLoading(true);
+    setEditorBuffer(null);
+    setEditTemplateName(name);
+    setErr(null);
+    try {
+      const ab = await fetchUrkundenTemplateDocx(name);
+      setEditorBuffer(ab);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      setEditTemplateName(null);
+    } finally {
+      setEditorLoading(false);
+    }
+  }
+
+  function onCloseTemplateEditor() {
+    if (editorBusy) return;
+    setEditTemplateName(null);
+    setEditorBuffer(null);
+  }
+
+  async function onSaveTemplateEditor() {
+    const name = String(editTemplateName ?? "").trim();
+    if (!name) return;
+    setEditorBusy(true);
+    setErr(null);
+    setInfo(null);
+    try {
+      const out = await editorRef.current?.save();
+      if (!out) throw new Error("Dokument konnte nicht gespeichert werden.");
+      const file = new File([out], name, {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const r = await uploadUrkundenTemplate(file, name);
+      setTemplateName(r.template.name);
+      setAvailableTemplateNames(r.template.availableNames ?? []);
+      setPlaceholders(r.template.placeholders ?? []);
+      setTemplatesRevision((v) => v + 1);
+      setInfo(`Vorlage gespeichert: ${name}`);
+      setEditTemplateName(null);
+      setEditorBuffer(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEditorBusy(false);
     }
   }
 
@@ -474,6 +556,30 @@ export function UrkundenPage() {
           3. Vorschau & Drucken
         </button>
       </div>
+      {(activeTab === "vorlage" || activeTab === "wertung") && (
+        <div className="auswertung-compact-actions urkunden-flow-actions">
+          {activeTab === "vorlage" && (
+            <button
+              type="button"
+              className="auswertung-refresh"
+              onClick={() => setActiveTab("wertung")}
+              disabled={busy}
+            >
+              Weiter zu Platzierung & Wertung
+            </button>
+          )}
+          {activeTab === "wertung" && (
+            <button
+              type="button"
+              className="auswertung-refresh"
+              onClick={() => void onContinueToPreview()}
+              disabled={busy}
+            >
+              Weiter zu Vorschau & Drucken
+            </button>
+          )}
+        </div>
+      )}
 
       {activeTab === "vorlage" && (
         <section className="auswertung-disc-section">
@@ -523,7 +629,7 @@ export function UrkundenPage() {
           <div className="urkunden-template-grid">
             {orderedTemplates.map((name) => (
               <article
-                key={name}
+                key={`${name}-${templatesRevision}`}
                 className={`urkunden-template-card ${templateName === name ? "active" : ""}`}
                 onClick={() => void onSelectTemplate(name)}
                 role="button"
@@ -539,6 +645,18 @@ export function UrkundenPage() {
                   <strong>{name}</strong>
                 </div>
                 <DocxTemplateThumb name={name} />
+                <button
+                  type="button"
+                  className="urkunden-template-edit"
+                  title={`Vorlage ${name} bearbeiten`}
+                  aria-label={`Vorlage ${name} bearbeiten`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void onOpenTemplateEditor(name);
+                  }}
+                >
+                  ✎
+                </button>
                 <button
                   type="button"
                   className="urkunden-template-delete"
@@ -666,6 +784,70 @@ export function UrkundenPage() {
         </div>
       )}
 
+      {editTemplateName && (
+        <div className="auswertung-modal-backdrop" onClick={onCloseTemplateEditor}>
+          <div
+            className="auswertung-modal urkunden-editor-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Vorlage ${editTemplateName} bearbeiten`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="auswertung-modal-head">
+              <h2>Vorlage bearbeiten: {editTemplateName}</h2>
+              <button
+                type="button"
+                className="auswertung-print-btn auswertung-close-icon"
+                onClick={onCloseTemplateEditor}
+                aria-label="Dialog schließen"
+                disabled={editorBusy}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="urkunden-editor-body">
+              {editorLoading && <p className="muted">Vorlage wird geladen…</p>}
+              {!editorLoading && editorBuffer && (
+                <div className="urkunden-editor-host" ref={editorHostRef}>
+                  <Suspense fallback={<p className="muted">Editor wird geladen…</p>}>
+                    <DocxEditor
+                      ref={editorRef}
+                      documentBuffer={editorBuffer}
+                      mode="editing"
+                      author="Meyton Wettkampfzentrale"
+                      showToolbar
+                      showRuler={false}
+                      showPrintButton={false}
+                      showOutline
+                      onError={(e) => setErr(e instanceof Error ? e.message : String(e))}
+                      onChange={() => undefined}
+                    />
+                  </Suspense>
+                </div>
+              )}
+            </div>
+            <div className="auswertung-modal-actions urkunden-editor-actions">
+              <button
+                type="button"
+                className="auswertung-refresh"
+                onClick={onCloseTemplateEditor}
+                disabled={editorBusy}
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                className="auswertung-print-btn"
+                onClick={() => void onSaveTemplateEditor()}
+                disabled={editorBusy || editorLoading || !editorBuffer}
+              >
+                {editorBusy ? "Speichern…" : "Vorlage speichern"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === "wertung" && (
         <section className="auswertung-disc-section">
           <h2 className="auswertung-disc-section-title">Platzierung & Wertung</h2>
@@ -723,16 +905,6 @@ export function UrkundenPage() {
             </label>
           </div>
           {info && <p className="muted">{info}</p>}
-          <div className="auswertung-compact-actions urkunden-continue-actions">
-            <button
-              type="button"
-              className="auswertung-refresh"
-              onClick={() => void onContinueToPreview()}
-              disabled={busy}
-            >
-              Weiter zu Vorschau & Drucken
-            </button>
-          </div>
         </section>
       )}
 

@@ -1833,6 +1833,10 @@ button.target-card {
   margin-top: 0.95rem;
 }
 
+.urkunden-flow-actions {
+  margin: 0 0 0.85rem;
+}
+
 .urkunden-template-selected-corner {
   position: absolute;
   top: 0;
@@ -1875,6 +1879,97 @@ button.target-card {
 
 .urkunden-template-delete:hover {
   background: #b91c1c;
+}
+
+.urkunden-template-edit {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid #1d4ed8;
+  background: rgba(30, 64, 175, 0.92);
+  color: #fff;
+  font-size: 0.86rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.urkunden-template-edit:hover {
+  background: #1d4ed8;
+}
+
+.urkunden-editor-modal {
+  width: min(1480px, 98vw);
+  max-height: min(94vh, 1100px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.urkunden-editor-body {
+  padding: 0.75rem 0.9rem 0.4rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+.urkunden-editor-host {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: visible;
+  background: #fff;
+  min-height: min(70vh, 760px);
+}
+
+.urkunden-editor-host .ep-root {
+  height: min(70vh, 760px);
+  min-height: min(70vh, 760px);
+  display: flex;
+  flex-direction: column;
+  color-scheme: light;
+}
+
+.urkunden-editor-host .ep-root [class*="paged-editor"],
+.urkunden-editor-host .ep-root [class*="editor-page"],
+.urkunden-editor-host .ep-root .layout-page-content {
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+/* Icon-Buttons im Editor: Rahmen ausblenden (Dropdown-/Textfelder bleiben erhalten) */
+.urkunden-editor-host .ep-root button.h-7.w-7,
+.urkunden-editor-host .ep-root button.h-8.w-8,
+.urkunden-editor-host .ep-root button.h-9.w-9,
+.urkunden-editor-host .ep-root button.min-w-\[55px\].h-8,
+.urkunden-editor-host .ep-root button.min-w-\[70px\].h-8 {
+  border-color: transparent !important;
+  border-width: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Dropdown-Trigger (z. B. Schriftart/Format) ebenfalls ohne sichtbaren Rahmen */
+.urkunden-editor-host .ep-root button[aria-haspopup="listbox"],
+.urkunden-editor-host .ep-root button[aria-haspopup="menu"],
+.urkunden-editor-host .ep-root [role="combobox"] {
+  border-color: transparent !important;
+  border-width: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+body.docx-editor-open [data-radix-popper-content-wrapper] {
+  z-index: 200 !important;
+}
+
+.urkunden-editor-actions {
+  padding: 0.6rem 0.9rem 0.8rem;
+  border-top: 1px solid var(--border);
 }
 
 .urkunden-placeholder-list {
