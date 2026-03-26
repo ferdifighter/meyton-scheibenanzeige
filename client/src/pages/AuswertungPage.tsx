@@ -3,11 +3,14 @@ import flatpickr from "flatpickr";
 import { German } from "flatpickr/dist/l10n/de.js";
 import "flatpickr/dist/themes/dark.css";
 import {
+  createAuswertungProfile,
   fetchAuswertung,
   fetchAuswertungStats,
+  fetchAuswertungSettings,
   fetchAuswertungYears,
   fetchAuswertungWettkaempfe,
   fetchDisziplinen,
+  saveAuswertungSettings,
   fetchStaende,
 } from "../api";
 import { ring01ToDisplay } from "../format";
@@ -80,6 +83,8 @@ export function AuswertungPage() {
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   const [showRatingDialog, setShowRatingDialog] = useState(false);
   const [showPdfDialog, setShowPdfDialog] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveNameDraft, setSaveNameDraft] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
@@ -145,6 +150,15 @@ export function AuswertungPage() {
   const wettkampfDatumLabel = wettkampfTageLines.join("\n");
 
   const [printStamp, setPrintStamp] = useState<string | null>(null);
+  const [settingsInfo, setSettingsInfo] = useState<string | null>(null);
+  const suggestedSaveName = useMemo(() => {
+    const wk = wettkampfFilter.trim();
+    const d = disciplineFilter.trim();
+    if (wk && d) return `${wk} - ${d}`;
+    if (wk) return wk;
+    if (d) return d;
+    return "Auswertung";
+  }, [disciplineFilter, wettkampfFilter]);
 
   const printFilterSummary = useMemo(() => {
     const w = wettkampfFilter.trim() || "alle Wettkämpfe";
@@ -167,6 +181,38 @@ export function AuswertungPage() {
     dateFromFilter,
     dateToFilter,
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await fetchAuswertungSettings();
+        if (cancelled) return;
+        setRankByDefault(s.rankByDefault);
+        setRankByPerDisciplin(s.rankByPerDisciplin || {});
+        setWettkampfFilter(String(s.filters?.wettkampf ?? ""));
+        setDisciplineFilter(String(s.filters?.disziplin ?? ""));
+        setStandFilter(
+          s.filters?.stand != null && Number.isFinite(Number(s.filters.stand))
+            ? String(s.filters.stand)
+            : ""
+        );
+        setYearFilter(
+          s.filters?.year != null && Number.isFinite(Number(s.filters.year))
+            ? String(s.filters.year)
+            : ""
+        );
+        setDateFromFilter(String(s.filters?.dateFrom ?? ""));
+        setDateToFilter(String(s.filters?.dateTo ?? ""));
+        setAllDates(Boolean(s.filters?.allDates));
+      } catch {
+        /* optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const onBeforePrint = () => {
@@ -351,6 +397,53 @@ export function AuswertungPage() {
     void buildPdfPreview();
   }, [buildPdfPreview]);
 
+  const saveCurrentAuswertungSettings = useCallback(async () => {
+    const name = saveNameDraft.trim();
+    if (!name) return;
+    setSettingsInfo(null);
+    try {
+      const settings = {
+        rankByDefault,
+        rankByPerDisciplin,
+        filters: {
+          wettkampf: wettkampfFilter,
+          disziplin: disciplineFilter,
+          stand:
+            standFilter !== "" && Number.isFinite(Number(standFilter))
+              ? Number(standFilter)
+              : null,
+          year:
+            yearFilter !== "" && Number.isFinite(Number(yearFilter))
+              ? Number(yearFilter)
+              : null,
+          dateFrom: dateFromFilter,
+          dateTo: dateToFilter,
+          allDates,
+        },
+      } as const;
+      await saveAuswertungSettings(settings);
+      await createAuswertungProfile(name, settings);
+      setSettingsInfo(`Auswertung gespeichert: ${name}`);
+      setShowSaveDialog(false);
+      setSaveNameDraft("");
+    } catch (e) {
+      setSettingsInfo(
+        `Speichern fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
+  }, [
+    allDates,
+    dateFromFilter,
+    dateToFilter,
+    disciplineFilter,
+    rankByDefault,
+    rankByPerDisciplin,
+    saveNameDraft,
+    standFilter,
+    wettkampfFilter,
+    yearFilter,
+  ]);
+
   const downloadPdf = useCallback(() => {
     if (!pdfPreviewUrl) return;
     const a = document.createElement("a");
@@ -369,17 +462,19 @@ export function AuswertungPage() {
   }, [pdfPreviewUrl, wettkampfFilter]);
 
   useEffect(() => {
-    if (!showFilterDialog && !showRatingDialog && !showPdfDialog) return;
+    if (!showFilterDialog && !showRatingDialog && !showPdfDialog && !showSaveDialog)
+      return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setShowFilterDialog(false);
         setShowRatingDialog(false);
         setShowPdfDialog(false);
+        setShowSaveDialog(false);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showFilterDialog, showRatingDialog, showPdfDialog]);
+  }, [showFilterDialog, showRatingDialog, showPdfDialog, showSaveDialog]);
 
   useEffect(
     () => () => {
@@ -693,7 +788,78 @@ export function AuswertungPage() {
         >
           PDF
         </button>
+        <button
+          type="button"
+          className="auswertung-print-btn"
+          onClick={() => {
+            setSaveNameDraft(suggestedSaveName);
+            setShowSaveDialog(true);
+          }}
+        >
+          Auswertung speichern
+        </button>
       </div>
+      {settingsInfo && <p className="muted no-print">{settingsInfo}</p>}
+
+      {showSaveDialog && (
+        <div
+          className="auswertung-modal-backdrop no-print"
+          onClick={() => setShowSaveDialog(false)}
+        >
+          <div
+            className="auswertung-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Auswertung speichern"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="auswertung-modal-head">
+              <h2>Auswertung speichern</h2>
+              <button
+                type="button"
+                className="auswertung-print-btn auswertung-close-icon"
+                onClick={() => setShowSaveDialog(false)}
+                aria-label="Dialog schließen"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="auswertung-filter-form">
+              <div className="auswertung-form-row">
+                <label className="protokoll-filter-label" htmlFor="ausw-save-name">
+                  Name
+                </label>
+                <input
+                  id="ausw-save-name"
+                  type="text"
+                  className="protokoll-filter-select"
+                  value={saveNameDraft}
+                  onChange={(e) => setSaveNameDraft(e.target.value)}
+                  placeholder="z. B. Kreismeisterschaft 2026"
+                  autoFocus
+                />
+              </div>
+              <div className="auswertung-modal-actions">
+                <button
+                  type="button"
+                  className="auswertung-refresh"
+                  onClick={() => setShowSaveDialog(false)}
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  className="auswertung-print-btn"
+                  onClick={() => void saveCurrentAuswertungSettings()}
+                  disabled={!saveNameDraft.trim()}
+                >
+                  Speichern
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showFilterDialog && (
         <div
@@ -711,10 +877,11 @@ export function AuswertungPage() {
               <h2>Filter</h2>
               <button
                 type="button"
-                className="auswertung-print-btn"
+                className="auswertung-print-btn auswertung-close-icon"
                 onClick={() => setShowFilterDialog(false)}
+                aria-label="Dialog schließen"
               >
-                Schließen
+                ✕
               </button>
             </div>
             <div className="auswertung-filter-form">
@@ -807,6 +974,15 @@ export function AuswertungPage() {
                   />
                 </div>
               </div>
+              <div className="auswertung-modal-actions">
+                <button
+                  type="button"
+                  className="auswertung-refresh"
+                  onClick={() => setShowFilterDialog(false)}
+                >
+                  Schließen
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -854,10 +1030,11 @@ export function AuswertungPage() {
               <h2>Wertungseinstellungen</h2>
               <button
                 type="button"
-                className="auswertung-print-btn"
+                className="auswertung-print-btn auswertung-close-icon"
                 onClick={() => setShowRatingDialog(false)}
+                aria-label="Dialog schließen"
               >
-                Schließen
+                ✕
               </button>
             </div>
             <section className="auswertung-disc-section" aria-labelledby="ausw-rank-heading">
@@ -943,6 +1120,17 @@ export function AuswertungPage() {
                 </div>
               )}
             </section>
+            <div className="auswertung-filter-form">
+              <div className="auswertung-modal-actions">
+                <button
+                  type="button"
+                  className="auswertung-refresh"
+                  onClick={() => setShowRatingDialog(false)}
+                >
+                  Schließen
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -972,10 +1160,11 @@ export function AuswertungPage() {
                 </button>
                 <button
                   type="button"
-                  className="auswertung-print-btn"
+                  className="auswertung-print-btn auswertung-close-icon"
                   onClick={closePdfDialog}
+                  aria-label="Dialog schließen"
                 >
-                  Schließen
+                  ✕
                 </button>
               </div>
             </div>

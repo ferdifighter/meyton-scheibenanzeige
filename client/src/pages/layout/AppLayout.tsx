@@ -100,6 +100,14 @@ function AppLayout() {
           >
             Einstellungen
           </NavLink>
+          <NavLink
+            to="/urkunden"
+            className={({ isActive }) =>
+              `app-sidebar-link${isActive ? " app-sidebar-link-active" : ""}`
+            }
+          >
+            Urkunden
+          </NavLink>
           <a
             className="app-sidebar-link app-sidebar-link-external"
             href="/scheibenanzeige"

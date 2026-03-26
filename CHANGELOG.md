@@ -2,6 +2,20 @@
 
 Alle nennenswerten Änderungen an diesem Projekt werden in dieser Datei dokumentiert.
 
+## [1.4.0] - 2026-03-25
+
+### Added
+- Neue Urkunden-Seite mit 3-Schritt-Workflow: Vorlage, Platzierung/Wertung, Vorschau & Drucken.
+- DOCX-Vorlagenverwaltung inkl. Upload, Auswahl, Vorschau-Miniaturen, Platzhalterhilfe und Löschdialog.
+- PDF-Vorschau/Druck für Urkunden (ein Dokument oder je Urkunde einzeln) mit Download.
+- Echtzeit-Fortschrittsanzeige für die Vorschauerstellung mit Prozentwert und "Urkunde X von Y".
+- Speicherung von Auswertungen als Profile in SQLite zur Wiederverwendung im Urkunden-Workflow.
+
+### Changed
+- Urkunden-UI verschlankt: redundante Felder/Buttons entfernt, kompaktere Abstände und klarere Dialogführung.
+- Fortschrittstexte in der Vorschau nutzerfreundlich auf Phasen umgestellt (Laden, Erstellen, PDF, Finalisieren).
+- Vorlagenliste filtert temporäre Word-Dateien (z. B. `~$...`) aus.
+
 ## [1.3.0] - 2026-03-25
 
 ### Added

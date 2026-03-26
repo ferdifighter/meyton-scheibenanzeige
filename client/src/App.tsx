@@ -5,6 +5,7 @@ import { ScheibenanzeigePage } from "./pages/ScheibenanzeigePage";
 import { TrefferProtokollPage } from "./pages/TrefferProtokollPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AuswertungPage } from "./pages/AuswertungPage";
+import { UrkundenPage } from "./pages/UrkundenPage";
 
 export function App() {
   return (
@@ -14,6 +15,7 @@ export function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/trefferprotokoll" element={<TrefferProtokollPage />} />
           <Route path="/auswertung" element={<AuswertungPage />} />
+          <Route path="/urkunden" element={<UrkundenPage />} />
           <Route path="/einstellungen" element={<SettingsPage />} />
         </Route>
         <Route path="/scheibenanzeige" element={<ScheibenanzeigePage />} />

@@ -1577,6 +1577,17 @@ button.target-card {
   font-weight: 700;
 }
 
+.auswertung-close-icon {
+  width: 2rem;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .auswertung-pdf-modal {
   width: min(1100px, 100%);
 }
@@ -1623,6 +1634,286 @@ button.target-card {
 
 .auswertung-form-row .auswertung-check {
   justify-self: start;
+}
+
+.urkunden-form-grid {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 0.15rem;
+}
+
+.urkunden-form-row {
+  display: grid;
+  grid-template-columns: 10.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.urkunden-form-row .protokoll-filter-select {
+  width: 100%;
+  max-width: none;
+}
+
+.urkunden-file-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+
+.urkunden-file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.1rem;
+}
+
+.urkunden-load-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.urkunden-load-row .protokoll-filter-select {
+  flex: 1 1 auto;
+}
+
+.urkunden-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+
+.urkunden-tab-btn {
+  padding: 0.45rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.urkunden-tab-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.urkunden-template-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.urkunden-template-card {
+  position: relative;
+  width: 220px;
+  max-width: 100%;
+  flex: 0 0 220px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.urkunden-template-card:hover {
+  border-color: var(--accent);
+}
+
+.urkunden-template-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.urkunden-template-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.urkunden-template-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.6rem;
+}
+
+.urkunden-template-thumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 300px;
+  overflow: hidden;
+  background: #fff;
+  border-top: 1px solid var(--border);
+}
+
+.urkunden-docx-thumb-canvas {
+  transform: scale(0.23);
+  transform-origin: center center;
+  width: fit-content;
+  height: fit-content;
+  pointer-events: none;
+}
+
+.urkunden-docx-thumb-canvas .docx-wrapper {
+  padding: 0 !important;
+  background: #fff !important;
+}
+
+.urkunden-docx-thumb-canvas .docx-wrapper > section:not(:first-child) {
+  display: none !important;
+}
+
+.urkunden-thumb-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 0.6rem;
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 0.8rem;
+}
+
+.urkunden-template-state {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.urkunden-preview-docx {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.7rem;
+  max-height: min(78vh, 860px);
+  overflow: auto;
+}
+
+.urkunden-preview-docx .docx-wrapper {
+  background: #fff !important;
+  padding: 0 !important;
+}
+
+.urkunden-progress-wrap {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.2rem 0 0.35rem;
+}
+
+.urkunden-progress {
+  position: relative;
+  width: 100%;
+  height: 0.58rem;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: rgba(59, 130, 246, 0.14);
+}
+
+.urkunden-progress-bar {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), #7cb4ff);
+  transition: width 160ms ease-out;
+}
+
+.urkunden-continue-actions {
+  margin-top: 0.95rem;
+}
+
+.urkunden-template-selected-corner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-top: 34px solid var(--accent);
+  border-left: 34px solid transparent;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  transform: translate(0, 0);
+}
+
+.urkunden-template-selected-corner::after {
+  content: "✓";
+  position: absolute;
+  top: -30px;
+  right: 3px;
+}
+
+.urkunden-template-delete {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid #ef4444;
+  background: rgba(127, 29, 29, 0.9);
+  color: #fff;
+  font-size: 0.86rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.urkunden-template-delete:hover {
+  background: #b91c1c;
+}
+
+.urkunden-placeholder-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.urkunden-placeholder-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.urkunden-placeholder-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.urkunden-placeholder-label {
+  font-size: 0.82rem;
+}
+
+.urkunden-placeholder-state {
+  font-size: 0.76rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.auswertung-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
 }
 
 .auswertung-period-controls {

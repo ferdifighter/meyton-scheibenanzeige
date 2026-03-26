@@ -264,6 +264,98 @@ export async function fetchAuswertung(opts: {
   return r.json();
 }
 
+export type AuswertungSettings = {
+  rankByDefault: "total" | "besterTeiler";
+  rankByPerDisciplin: Record<string, "total" | "besterTeiler">;
+  filters: {
+    wettkampf: string;
+    disziplin: string;
+    stand: number | null;
+    year: number | null;
+    dateFrom: string;
+    dateTo: string;
+    allDates: boolean;
+  };
+};
+
+export async function fetchAuswertungSettings(): Promise<AuswertungSettings> {
+  const r = await fetch("/api/auswertung/settings");
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+export async function saveAuswertungSettings(settings: AuswertungSettings): Promise<void> {
+  const r = await fetch("/api/auswertung/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!r.ok) throw new Error(await r.text());
+}
+
+export type AuswertungProfileSummary = {
+  id: number;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AuswertungProfile = {
+  id: number;
+  name: string;
+  settings: AuswertungSettings;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function fetchAuswertungProfiles(): Promise<AuswertungProfileSummary[]> {
+  const r = await fetch("/api/auswertung/profiles");
+  if (!r.ok) throw new Error(await r.text());
+  const out = (await r.json()) as { profiles?: AuswertungProfileSummary[] };
+  return Array.isArray(out.profiles) ? out.profiles : [];
+}
+
+export async function fetchAuswertungProfile(id: number): Promise<AuswertungProfile> {
+  const r = await fetch(`/api/auswertung/profiles/${encodeURIComponent(String(id))}`);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+export async function createAuswertungProfile(
+  name: string,
+  settings: AuswertungSettings
+): Promise<AuswertungProfile> {
+  const r = await fetch("/api/auswertung/profiles", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, settings }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const out = (await r.json()) as { profile: AuswertungProfile };
+  return out.profile;
+}
+
+export async function renameAuswertungProfile(
+  id: number,
+  name: string
+): Promise<AuswertungProfile> {
+  const r = await fetch(`/api/auswertung/profiles/${encodeURIComponent(String(id))}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const out = (await r.json()) as { profile: AuswertungProfile };
+  return out.profile;
+}
+
+export async function deleteAuswertungProfile(id: number): Promise<void> {
+  const r = await fetch(`/api/auswertung/profiles/${encodeURIComponent(String(id))}`, {
+    method: "DELETE",
+  });
+  if (!r.ok) throw new Error(await r.text());
+}
+
 export async function fetchAuswertungYears(): Promise<number[]> {
   const r = await fetch("/api/auswertung/jahre");
   if (!r.ok) throw new Error(await r.text());
@@ -316,6 +408,248 @@ export async function fetchAuswertungStats(opts?: {
   }
   const q = params.toString();
   const r = await fetch(q ? `/api/auswertung/stats?${q}` : "/api/auswertung/stats");
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+export type UrkundenSettings = {
+  rankFrom: number;
+  rankTo: number;
+  rankByDefault: "total" | "besterTeiler";
+  rankByPerDisciplin: Record<string, "total" | "besterTeiler">;
+  printerName: string;
+  filters: {
+    wettkampf: string;
+    disziplin: string;
+    stand: number | null;
+    year: number | null;
+    dateFrom: string;
+    dateTo: string;
+    allDates: boolean;
+  };
+};
+
+export async function fetchUrkundenSettings(): Promise<{
+  settings: UrkundenSettings;
+  template: {
+    exists: boolean;
+    name: string | null;
+    placeholders: string[];
+    availableNames?: string[];
+  };
+}> {
+  const r = await fetch("/api/urkunden/settings");
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+export async function saveUrkundenSettings(settings: UrkundenSettings): Promise<void> {
+  const r = await fetch("/api/urkunden/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!r.ok) throw new Error(await r.text());
+}
+
+export async function uploadUrkundenTemplate(
+  file: File,
+  templateName?: string
+): Promise<{
+  template: {
+    exists: boolean;
+    name: string | null;
+    placeholders: string[];
+    availableNames?: string[];
+  };
+}> {
+  const ab = await file.arrayBuffer();
+  const bytes = new Uint8Array(ab);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i]);
+  const contentBase64 = btoa(bin);
+  const r = await fetch("/api/urkunden/template", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename: file.name, contentBase64, templateName }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+export async function fetchUrkundenTemplates(): Promise<{
+  names: string[];
+  selectedName: string | null;
+}> {
+  const r = await fetch("/api/urkunden/templates");
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+export async function selectUrkundenTemplate(name: string): Promise<{
+  template: {
+    exists: boolean;
+    name: string | null;
+    placeholders: string[];
+    availableNames?: string[];
+  };
+}> {
+  const r = await fetch("/api/urkunden/template/select", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+export async function deleteUrkundenTemplate(name: string): Promise<{
+  templates: { names: string[]; selectedName: string | null };
+}> {
+  const q = new URLSearchParams({ name });
+  const r = await fetch(`/api/urkunden/template?${q.toString()}`, {
+    method: "DELETE",
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+export async function fetchUrkundenTemplateDocx(name: string): Promise<ArrayBuffer> {
+  const q = new URLSearchParams();
+  if (name.trim()) q.set("name", name.trim());
+  const r = await fetch(`/api/urkunden/template?${q.toString()}`);
+  if (!r.ok) throw new Error(await r.text());
+  return r.arrayBuffer();
+}
+
+export async function downloadUrkundenZip(settings: UrkundenSettings): Promise<Blob> {
+  const r = await fetch("/api/urkunden/generate-zip", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ settings }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.blob();
+}
+
+export async function printUrkunden(settings: UrkundenSettings): Promise<{
+  ok: boolean;
+  printed: number;
+  printer: string | null;
+  sofficeBin: string;
+}> {
+  const r = await fetch("/api/urkunden/print", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ settings }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+export async function fetchUrkundenPreviewPdf(settings: UrkundenSettings): Promise<Blob> {
+  const r = await fetch("/api/urkunden/preview-pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ settings }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.blob();
+}
+
+export type UrkundenPreviewProgress = {
+  id: string;
+  phase: string;
+  message: string;
+  current: number;
+  total: number;
+  percent: number;
+  done: boolean;
+  error: string;
+  startedAt: number;
+  updatedAt: number;
+};
+
+export async function fetchUrkundenPreviewProgress(
+  progressId: string
+): Promise<UrkundenPreviewProgress> {
+  const r = await fetch(`/api/urkunden/progress/${encodeURIComponent(progressId)}`);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+export async function fetchUrkundenPreviewPdfWithProgress(
+  settings: UrkundenSettings,
+  progressId: string
+): Promise<Blob> {
+  const r = await fetch("/api/urkunden/preview-pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ settings, progressId }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.blob();
+}
+
+export async function fetchUrkundenPreviewDocx(settings: UrkundenSettings): Promise<{
+  blob: Blob;
+  total: number;
+}> {
+  const r = await fetch("/api/urkunden/preview-docx", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ settings }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const total = Number(r.headers.get("X-Urkunden-Total") || "0");
+  return { blob: await r.blob(), total: Number.isFinite(total) ? total : 0 };
+}
+
+export async function fetchUrkundenPreviewDocxWithProgress(
+  settings: UrkundenSettings,
+  progressId: string
+): Promise<{
+  blob: Blob;
+  total: number;
+}> {
+  const r = await fetch("/api/urkunden/preview-docx", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ settings, progressId }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const total = Number(r.headers.get("X-Urkunden-Total") || "0");
+  return { blob: await r.blob(), total: Number.isFinite(total) ? total : 0 };
+}
+
+export async function downloadUrkundenPdf(
+  settings: UrkundenSettings,
+  outputMode: "single" | "perCertificate"
+): Promise<Blob> {
+  const r = await fetch("/api/urkunden/download-pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ settings, outputMode }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.blob();
+}
+
+export async function printUrkundenPdf(
+  settings: UrkundenSettings,
+  outputMode: "single" | "perCertificate"
+): Promise<{
+  ok: boolean;
+  printed: number;
+  printer: string | null;
+  mode: "single" | "perCertificate";
+  sofficeBin: string;
+}> {
+  const r = await fetch("/api/urkunden/print-pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ settings, outputMode }),
+  });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
