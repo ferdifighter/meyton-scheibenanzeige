@@ -93,14 +93,6 @@ function AppLayout() {
             Auswertung
           </NavLink>
           <NavLink
-            to="/einstellungen"
-            className={({ isActive }) =>
-              `app-sidebar-link${isActive ? " app-sidebar-link-active" : ""}`
-            }
-          >
-            Einstellungen
-          </NavLink>
-          <NavLink
             to="/urkunden"
             className={({ isActive }) =>
               `app-sidebar-link${isActive ? " app-sidebar-link-active" : ""}`
@@ -119,6 +111,14 @@ function AppLayout() {
               ↗
             </span>
           </a>
+          <NavLink
+            to="/einstellungen"
+            className={({ isActive }) =>
+              `app-sidebar-link${isActive ? " app-sidebar-link-active" : ""}`
+            }
+          >
+            Einstellungen
+          </NavLink>
         </nav>
         <footer className="app-sidebar-footer">
           <a

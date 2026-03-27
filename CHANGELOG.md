@@ -2,6 +2,11 @@
 
 Alle nennenswerten Änderungen an diesem Projekt werden in dieser Datei dokumentiert.
 
+## [1.5.1] - 2026-03-25
+
+### Changed
+- Sidebar-Navigation angepasst: `Einstellungen` wird nun als letzter Menüpunkt angezeigt.
+
 ## [1.5.0] - 2026-03-25
 
 ### Added
