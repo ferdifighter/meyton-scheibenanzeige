@@ -4,12 +4,16 @@ import { German } from "flatpickr/dist/l10n/de.js";
 import "flatpickr/dist/themes/dark.css";
 import {
   createAuswertungProfile,
+  deleteAuswertungProfile,
   fetchAuswertung,
+  fetchAuswertungProfile,
+  fetchAuswertungProfiles,
   fetchAuswertungStats,
   fetchAuswertungSettings,
   fetchAuswertungYears,
   fetchAuswertungWettkaempfe,
   fetchDisziplinen,
+  renameAuswertungProfile,
   saveAuswertungSettings,
   fetchStaende,
 } from "../api";
@@ -84,7 +88,16 @@ export function AuswertungPage() {
   const [showRatingDialog, setShowRatingDialog] = useState(false);
   const [showPdfDialog, setShowPdfDialog] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showProfilesDialog, setShowProfilesDialog] = useState(false);
   const [saveNameDraft, setSaveNameDraft] = useState("");
+  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
+  const [profiles, setProfiles] = useState<Array<{ id: number; name: string }>>([]);
+  const [profilesBusy, setProfilesBusy] = useState(false);
+  const [profileActionMsg, setProfileActionMsg] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [confirmDeleteProfileId, setConfirmDeleteProfileId] = useState<number | null>(
+    null
+  );
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
@@ -182,29 +195,48 @@ export function AuswertungPage() {
     dateToFilter,
   ]);
 
+  const applyAuswertungState = useCallback(
+    (settings: {
+      rankByDefault: "total" | "besterTeiler";
+      rankByPerDisciplin?: Record<string, "total" | "besterTeiler">;
+      filters?: {
+        wettkampf?: string;
+        disziplin?: string;
+        stand?: number | null;
+        year?: number | null;
+        dateFrom?: string;
+        dateTo?: string;
+        allDates?: boolean;
+      };
+    }) => {
+      setRankByDefault(settings.rankByDefault);
+      setRankByPerDisciplin(settings.rankByPerDisciplin || {});
+      setWettkampfFilter(String(settings.filters?.wettkampf ?? ""));
+      setDisciplineFilter(String(settings.filters?.disziplin ?? ""));
+      setStandFilter(
+        settings.filters?.stand != null && Number.isFinite(Number(settings.filters.stand))
+          ? String(settings.filters.stand)
+          : ""
+      );
+      setYearFilter(
+        settings.filters?.year != null && Number.isFinite(Number(settings.filters.year))
+          ? String(settings.filters.year)
+          : ""
+      );
+      setDateFromFilter(String(settings.filters?.dateFrom ?? ""));
+      setDateToFilter(String(settings.filters?.dateTo ?? ""));
+      setAllDates(Boolean(settings.filters?.allDates));
+    },
+    []
+  );
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const s = await fetchAuswertungSettings();
         if (cancelled) return;
-        setRankByDefault(s.rankByDefault);
-        setRankByPerDisciplin(s.rankByPerDisciplin || {});
-        setWettkampfFilter(String(s.filters?.wettkampf ?? ""));
-        setDisciplineFilter(String(s.filters?.disziplin ?? ""));
-        setStandFilter(
-          s.filters?.stand != null && Number.isFinite(Number(s.filters.stand))
-            ? String(s.filters.stand)
-            : ""
-        );
-        setYearFilter(
-          s.filters?.year != null && Number.isFinite(Number(s.filters.year))
-            ? String(s.filters.year)
-            : ""
-        );
-        setDateFromFilter(String(s.filters?.dateFrom ?? ""));
-        setDateToFilter(String(s.filters?.dateTo ?? ""));
-        setAllDates(Boolean(s.filters?.allDates));
+        applyAuswertungState(s);
       } catch {
         /* optional */
       }
@@ -212,7 +244,7 @@ export function AuswertungPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [applyAuswertungState]);
 
   useEffect(() => {
     const onBeforePrint = () => {
@@ -231,10 +263,36 @@ export function AuswertungPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const closeOpenMenus = (target: EventTarget | null) => {
+      if (target instanceof Element && target.closest(".auswertung-menu")) return;
+      const openMenus = document.querySelectorAll<HTMLDetailsElement>(
+        ".auswertung-menu[open]"
+      );
+      openMenus.forEach((menu) => {
+        menu.open = false;
+      });
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      closeOpenMenus(e.target);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, []);
+
   const handlePrint = () => {
     setPrintStamp(new Date().toLocaleString("de-DE"));
     document.documentElement.classList.add("print-auswertung-prepare");
     requestAnimationFrame(() => window.print());
+  };
+
+  const closeToolbarMenu = (target: EventTarget | null) => {
+    const host = target instanceof HTMLElement ? target.closest("details") : null;
+    if (host instanceof HTMLDetailsElement) host.open = false;
   };
 
   const closePdfDialog = useCallback(() => {
@@ -397,6 +455,70 @@ export function AuswertungPage() {
     void buildPdfPreview();
   }, [buildPdfPreview]);
 
+  const refreshProfiles = useCallback(async () => {
+    const list = await fetchAuswertungProfiles();
+    setProfiles(list.map((p) => ({ id: p.id, name: p.name })));
+    setSelectedProfileId((prev) => {
+      if (prev != null && list.some((p) => p.id === prev)) return prev;
+      return list[0]?.id ?? null;
+    });
+  }, []);
+
+  const loadSelectedProfile = useCallback(async () => {
+    if (selectedProfileId == null) return;
+    setProfilesBusy(true);
+    setProfileActionMsg(null);
+    try {
+      const profile = await fetchAuswertungProfile(selectedProfileId);
+      applyAuswertungState(profile.settings);
+      setRenameDraft(profile.name);
+      setShowProfilesDialog(false);
+      setSettingsInfo(`Auswertung geladen: ${profile.name}`);
+    } catch (e) {
+      setProfileActionMsg(
+        `Laden fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
+      );
+    } finally {
+      setProfilesBusy(false);
+    }
+  }, [applyAuswertungState, selectedProfileId]);
+
+  const renameSelectedProfile = useCallback(async () => {
+    if (selectedProfileId == null || !renameDraft.trim()) return;
+    setProfilesBusy(true);
+    setProfileActionMsg(null);
+    try {
+      const renamed = await renameAuswertungProfile(selectedProfileId, renameDraft.trim());
+      await refreshProfiles();
+      setRenameDraft(renamed.name);
+      setProfileActionMsg(`Profil umbenannt: ${renamed.name}`);
+    } catch (e) {
+      setProfileActionMsg(
+        `Umbenennen fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
+      );
+    } finally {
+      setProfilesBusy(false);
+    }
+  }, [refreshProfiles, renameDraft, selectedProfileId]);
+
+  const deleteSelectedProfile = useCallback(async () => {
+    if (selectedProfileId == null) return;
+    setProfilesBusy(true);
+    setProfileActionMsg(null);
+    try {
+      await deleteAuswertungProfile(selectedProfileId);
+      setConfirmDeleteProfileId(null);
+      await refreshProfiles();
+      setProfileActionMsg("Profil gelöscht.");
+    } catch (e) {
+      setProfileActionMsg(
+        `Löschen fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
+      );
+    } finally {
+      setProfilesBusy(false);
+    }
+  }, [refreshProfiles, selectedProfileId]);
+
   const saveCurrentAuswertungSettings = useCallback(async () => {
     const name = saveNameDraft.trim();
     if (!name) return;
@@ -422,8 +544,10 @@ export function AuswertungPage() {
         },
       } as const;
       await saveAuswertungSettings(settings);
-      await createAuswertungProfile(name, settings);
-      setSettingsInfo(`Auswertung gespeichert: ${name}`);
+      const created = await createAuswertungProfile(name, settings);
+      await refreshProfiles();
+      setSelectedProfileId(created.id);
+      setSettingsInfo(`Auswertung gespeichert: ${created.name}`);
       setShowSaveDialog(false);
       setSaveNameDraft("");
     } catch (e) {
@@ -442,6 +566,7 @@ export function AuswertungPage() {
     standFilter,
     wettkampfFilter,
     yearFilter,
+    refreshProfiles,
   ]);
 
   const downloadPdf = useCallback(() => {
@@ -462,7 +587,13 @@ export function AuswertungPage() {
   }, [pdfPreviewUrl, wettkampfFilter]);
 
   useEffect(() => {
-    if (!showFilterDialog && !showRatingDialog && !showPdfDialog && !showSaveDialog)
+    if (
+      !showFilterDialog &&
+      !showRatingDialog &&
+      !showPdfDialog &&
+      !showSaveDialog &&
+      !showProfilesDialog
+    )
       return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -470,11 +601,18 @@ export function AuswertungPage() {
         setShowRatingDialog(false);
         setShowPdfDialog(false);
         setShowSaveDialog(false);
+        setShowProfilesDialog(false);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showFilterDialog, showRatingDialog, showPdfDialog, showSaveDialog]);
+  }, [
+    showFilterDialog,
+    showRatingDialog,
+    showPdfDialog,
+    showSaveDialog,
+    showProfilesDialog,
+  ]);
 
   useEffect(
     () => () => {
@@ -568,6 +706,21 @@ export function AuswertungPage() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        await refreshProfiles();
+      } catch {
+        /* optional */
+      }
+    })();
+  }, [refreshProfiles]);
+
+  useEffect(() => {
+    const selected = profiles.find((p) => p.id === selectedProfileId);
+    setRenameDraft(selected?.name ?? "");
+  }, [profiles, selectedProfileId]);
 
   useEffect(() => {
     void (async () => {
@@ -767,37 +920,73 @@ export function AuswertungPage() {
         >
           Wertung
         </button>
-        <button
-          type="button"
-          className="auswertung-refresh"
-          onClick={() => void load()}
-        >
-          Aktualisieren
-        </button>
-        <button
-          type="button"
-          className="auswertung-print-btn"
-          onClick={handlePrint}
-        >
-          Drucken
-        </button>
-        <button
-          type="button"
-          className="auswertung-print-btn"
-          onClick={openPdfDialog}
-        >
-          PDF
-        </button>
-        <button
-          type="button"
-          className="auswertung-print-btn"
-          onClick={() => {
-            setSaveNameDraft(suggestedSaveName);
-            setShowSaveDialog(true);
-          }}
-        >
-          Auswertung speichern
-        </button>
+        <div className="auswertung-action-menus">
+          <details className="auswertung-menu">
+            <summary className="auswertung-refresh">Aktionen</summary>
+            <div className="auswertung-menu-panel" role="menu" aria-label="Aktionen">
+              <button
+                type="button"
+                className="auswertung-menu-item"
+                onClick={(e) => {
+                  closeToolbarMenu(e.currentTarget);
+                  void load();
+                }}
+              >
+                Aktualisieren
+              </button>
+              <button
+                type="button"
+                className="auswertung-menu-item"
+                onClick={(e) => {
+                  closeToolbarMenu(e.currentTarget);
+                  handlePrint();
+                }}
+              >
+                Drucken
+              </button>
+              <button
+                type="button"
+                className="auswertung-menu-item"
+                onClick={(e) => {
+                  closeToolbarMenu(e.currentTarget);
+                  openPdfDialog();
+                }}
+              >
+                PDF
+              </button>
+            </div>
+          </details>
+
+          <details className="auswertung-menu">
+            <summary className="auswertung-print-btn">Auswertungen</summary>
+            <div className="auswertung-menu-panel" role="menu" aria-label="Auswertungen">
+              <button
+                type="button"
+                className="auswertung-menu-item"
+                onClick={(e) => {
+                  closeToolbarMenu(e.currentTarget);
+                  setSaveNameDraft(suggestedSaveName);
+                  setShowSaveDialog(true);
+                }}
+              >
+                Auswertung speichern
+              </button>
+              <button
+                type="button"
+                className="auswertung-menu-item"
+                onClick={(e) => {
+                  closeToolbarMenu(e.currentTarget);
+                  setProfileActionMsg(null);
+                  setConfirmDeleteProfileId(null);
+                  void refreshProfiles();
+                  setShowProfilesDialog(true);
+                }}
+              >
+                Gespeicherte Auswertungen
+              </button>
+            </div>
+          </details>
+        </div>
       </div>
       {settingsInfo && <p className="muted no-print">{settingsInfo}</p>}
 
@@ -855,6 +1044,125 @@ export function AuswertungPage() {
                 >
                   Speichern
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProfilesDialog && (
+        <div
+          className="auswertung-modal-backdrop no-print"
+          onClick={() => setShowProfilesDialog(false)}
+        >
+          <div
+            className="auswertung-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Gespeicherte Auswertungen"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="auswertung-modal-head">
+              <h2>Gespeicherte Auswertungen</h2>
+              <button
+                type="button"
+                className="auswertung-print-btn auswertung-close-icon"
+                onClick={() => setShowProfilesDialog(false)}
+                aria-label="Dialog schließen"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="auswertung-filter-form">
+              <div className="auswertung-form-row">
+                <label className="protokoll-filter-label" htmlFor="ausw-profile-select">
+                  Auswertung
+                </label>
+                <select
+                  id="ausw-profile-select"
+                  className="protokoll-filter-select"
+                  value={selectedProfileId != null ? String(selectedProfileId) : ""}
+                  onChange={(e) =>
+                    setSelectedProfileId(
+                      e.target.value ? Number(e.target.value) : null
+                    )
+                  }
+                  disabled={profilesBusy || profiles.length === 0}
+                >
+                  {profiles.length === 0 ? (
+                    <option value="">Keine gespeicherten Auswertungen</option>
+                  ) : null}
+                  {profiles.map((p) => (
+                    <option key={p.id} value={String(p.id)}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="auswertung-form-row">
+                <label className="protokoll-filter-label" htmlFor="ausw-profile-rename">
+                  Name
+                </label>
+                <input
+                  id="ausw-profile-rename"
+                  type="text"
+                  className="protokoll-filter-select"
+                  value={renameDraft}
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  placeholder="Name der Auswertung"
+                  disabled={profilesBusy || selectedProfileId == null}
+                />
+              </div>
+
+              {profileActionMsg && <p className="muted">{profileActionMsg}</p>}
+
+              <div className="auswertung-modal-actions auswertung-profiles-actions">
+                <button
+                  type="button"
+                  className="auswertung-print-btn"
+                  onClick={() => void loadSelectedProfile()}
+                  disabled={profilesBusy || selectedProfileId == null}
+                >
+                  Laden
+                </button>
+                <button
+                  type="button"
+                  className="auswertung-refresh"
+                  onClick={() => void renameSelectedProfile()}
+                  disabled={profilesBusy || selectedProfileId == null || !renameDraft.trim()}
+                >
+                  Umbenennen
+                </button>
+                {confirmDeleteProfileId === selectedProfileId && selectedProfileId != null ? (
+                  <>
+                    <button
+                      type="button"
+                      className="auswertung-refresh"
+                      onClick={() => setConfirmDeleteProfileId(null)}
+                      disabled={profilesBusy}
+                    >
+                      Abbrechen
+                    </button>
+                    <button
+                      type="button"
+                      className="auswertung-print-btn"
+                      onClick={() => void deleteSelectedProfile()}
+                      disabled={profilesBusy}
+                    >
+                      Löschen bestätigen
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="auswertung-print-btn"
+                    onClick={() => setConfirmDeleteProfileId(selectedProfileId)}
+                    disabled={profilesBusy || selectedProfileId == null}
+                  >
+                    Löschen
+                  </button>
+                )}
               </div>
             </div>
           </div>

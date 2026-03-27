@@ -89,6 +89,8 @@ export async function fetchScheiben(
     disziplin?: string;
     /** eine Standnummer, leer = alle */
     stand?: number;
+    /** Wettkampfname (Starterliste), leer = alle */
+    wettkampf?: string;
   }
 ): Promise<ScheibeRow[]> {
   const params = new URLSearchParams({
@@ -100,6 +102,9 @@ export async function fetchScheiben(
   if (d) params.set("disziplin", d);
   if (opts?.stand != null && opts.stand > 0) {
     params.set("stand", String(opts.stand));
+  }
+  if (opts?.wettkampf?.trim()) {
+    params.set("starterliste", opts.wettkampf.trim());
   }
   const r = await fetch(`/api/scheiben?${params}`);
   if (!r.ok) throw new Error(await r.text());
@@ -429,6 +434,41 @@ export type UrkundenSettings = {
   };
 };
 
+export type UrkundenCandidate = {
+  scheibenId: number;
+  platz: number;
+  wettkampf: string;
+  disziplin: string;
+  klasse: string;
+  vorname: string;
+  nachname: string;
+  stand: number;
+};
+
+type UrkundenSelectionOptions = {
+  selectedScheibenIds?: number[];
+  fileNameSchema?: "standard" | "platz-name" | "name-platz";
+  sortMode?: "wettkampf" | "platz-name" | "name-platz";
+};
+
+function mergeUrkundenSettingsForApi(
+  base: UrkundenSettings,
+  input: UrkundenSettings
+): UrkundenSettings {
+  return {
+    ...base,
+    ...input,
+    rankByPerDisciplin: {
+      ...(base.rankByPerDisciplin ?? {}),
+      ...(input.rankByPerDisciplin ?? {}),
+    },
+    filters: {
+      ...(base.filters ?? {}),
+      ...(input.filters ?? {}),
+    },
+  };
+}
+
 export async function fetchUrkundenSettings(): Promise<{
   settings: UrkundenSettings;
   template: {
@@ -580,12 +620,21 @@ export async function fetchUrkundenPreviewProgress(
 
 export async function fetchUrkundenPreviewPdfWithProgress(
   settings: UrkundenSettings,
-  progressId: string
+  progressId: string,
+  options?: UrkundenSelectionOptions
 ): Promise<Blob> {
   const r = await fetch("/api/urkunden/preview-pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ settings, progressId }),
+    body: JSON.stringify({
+      settings,
+      progressId,
+      selectedScheibenIds: options?.selectedScheibenIds ?? [],
+      options: {
+        fileNameSchema: options?.fileNameSchema ?? "standard",
+        sortMode: options?.sortMode ?? "wettkampf",
+      },
+    }),
   });
   if (!r.ok) throw new Error(await r.text());
   return r.blob();
@@ -607,7 +656,8 @@ export async function fetchUrkundenPreviewDocx(settings: UrkundenSettings): Prom
 
 export async function fetchUrkundenPreviewDocxWithProgress(
   settings: UrkundenSettings,
-  progressId: string
+  progressId: string,
+  options?: UrkundenSelectionOptions
 ): Promise<{
   blob: Blob;
   total: number;
@@ -615,21 +665,107 @@ export async function fetchUrkundenPreviewDocxWithProgress(
   const r = await fetch("/api/urkunden/preview-docx", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ settings, progressId }),
+    body: JSON.stringify({
+      settings,
+      progressId,
+      selectedScheibenIds: options?.selectedScheibenIds ?? [],
+      options: {
+        fileNameSchema: options?.fileNameSchema ?? "standard",
+        sortMode: options?.sortMode ?? "wettkampf",
+      },
+    }),
   });
   if (!r.ok) throw new Error(await r.text());
   const total = Number(r.headers.get("X-Urkunden-Total") || "0");
   return { blob: await r.blob(), total: Number.isFinite(total) ? total : 0 };
 }
 
+export async function fetchUrkundenCandidates(
+  settings: UrkundenSettings
+): Promise<UrkundenCandidate[]> {
+  const baseSettings = (await fetchUrkundenSettings()).settings;
+  const mergedSettings = mergeUrkundenSettingsForApi(baseSettings, settings);
+
+  const baseQuery = {
+    rankBy: mergedSettings.rankByDefault,
+    rankByPerDisciplin:
+      Object.keys(mergedSettings.rankByPerDisciplin ?? {}).length > 0
+        ? mergedSettings.rankByPerDisciplin
+        : undefined,
+    disziplin: mergedSettings.filters.disziplin || undefined,
+    allDates: mergedSettings.filters.allDates,
+    stand:
+      mergedSettings.filters.stand != null &&
+      Number.isFinite(Number(mergedSettings.filters.stand))
+        ? Number(mergedSettings.filters.stand)
+        : undefined,
+    year:
+      mergedSettings.filters.year != null &&
+      Number.isFinite(Number(mergedSettings.filters.year))
+        ? Number(mergedSettings.filters.year)
+        : undefined,
+    wettkampf: mergedSettings.filters.wettkampf || undefined,
+    dateFrom: mergedSettings.filters.dateFrom || undefined,
+    dateTo: mergedSettings.filters.dateTo || undefined,
+  } as const;
+
+  const auswertung = await fetchAuswertung(baseQuery);
+
+  const from = Number.isFinite(Number(mergedSettings.rankFrom))
+    ? Number(mergedSettings.rankFrom)
+    : 1;
+  const to = Number.isFinite(Number(mergedSettings.rankTo))
+    ? Number(mergedSettings.rankTo)
+    : from;
+  const rankMin = Math.max(1, Math.min(from, to));
+  const rankMax = Math.max(rankMin, Math.max(from, to));
+
+  const candidates = auswertung.rows
+    .filter((r) => Number(r.Platz) >= rankMin && Number(r.Platz) <= rankMax)
+    .map((r) => ({
+      scheibenId: Number(r.ScheibenID),
+      platz: Number(r.Platz),
+      wettkampf: String(r.WettkampfDisplay ?? "").trim(),
+      disziplin: String(r.DisziplinNorm ?? "").trim(),
+      klasse: String(r.KlasseDisplay ?? "").trim(),
+      vorname: String(r.Vorname ?? "").trim(),
+      nachname: String(r.Nachname ?? "").trim(),
+      stand: Number(r.StandNr),
+    }))
+    .filter((c) => Number.isFinite(c.scheibenId) && Math.trunc(c.scheibenId) !== 0)
+    .sort((a, b) => {
+      const byW = a.wettkampf.localeCompare(b.wettkampf, "de");
+      if (byW !== 0) return byW;
+      const byD = a.disziplin.localeCompare(b.disziplin, "de");
+      if (byD !== 0) return byD;
+      const byK = a.klasse.localeCompare(b.klasse, "de");
+      if (byK !== 0) return byK;
+      if (a.platz !== b.platz) return a.platz - b.platz;
+      const byN = a.nachname.localeCompare(b.nachname, "de");
+      if (byN !== 0) return byN;
+      return a.vorname.localeCompare(b.vorname, "de");
+    });
+
+  return candidates;
+}
+
 export async function downloadUrkundenPdf(
   settings: UrkundenSettings,
-  outputMode: "single" | "perCertificate"
+  outputMode: "single" | "perCertificate",
+  options?: UrkundenSelectionOptions
 ): Promise<Blob> {
   const r = await fetch("/api/urkunden/download-pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ settings, outputMode }),
+    body: JSON.stringify({
+      settings,
+      outputMode,
+      selectedScheibenIds: options?.selectedScheibenIds ?? [],
+      options: {
+        fileNameSchema: options?.fileNameSchema ?? "standard",
+        sortMode: options?.sortMode ?? "wettkampf",
+      },
+    }),
   });
   if (!r.ok) throw new Error(await r.text());
   return r.blob();
@@ -637,7 +773,8 @@ export async function downloadUrkundenPdf(
 
 export async function printUrkundenPdf(
   settings: UrkundenSettings,
-  outputMode: "single" | "perCertificate"
+  outputMode: "single" | "perCertificate",
+  options?: UrkundenSelectionOptions
 ): Promise<{
   ok: boolean;
   printed: number;
@@ -648,7 +785,15 @@ export async function printUrkundenPdf(
   const r = await fetch("/api/urkunden/print-pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ settings, outputMode }),
+    body: JSON.stringify({
+      settings,
+      outputMode,
+      selectedScheibenIds: options?.selectedScheibenIds ?? [],
+      options: {
+        fileNameSchema: options?.fileNameSchema ?? "standard",
+        sortMode: options?.sortMode ?? "wettkampf",
+      },
+    }),
   });
   if (!r.ok) throw new Error(await r.text());
   return r.json();

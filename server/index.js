@@ -49,13 +49,26 @@ import { buildUiSettings, writeUiSettingsFile } from "./uiSettings.js";
 const CLIENT_DIST = path.join(__dirname, "../client/dist");
 
 const APP_VERSION = (() => {
-  try {
-    const raw = fs.readFileSync(path.join(__dirname, "package.json"), "utf8");
+  const readVersion = (filePath) => {
+    const raw = fs.readFileSync(filePath, "utf8");
     const p = JSON.parse(raw);
-    return typeof p.version === "string" ? p.version : "0.0.0";
+    return typeof p.version === "string" ? p.version.trim() : "";
+  };
+  try {
+    // Zentrale Versionsquelle: Root package.json (Desktop/App-Version).
+    const rootVersion = readVersion(path.join(__dirname, "../package.json"));
+    if (rootVersion) return rootVersion;
   } catch {
-    return "0.0.0";
+    /* Fallback unten */
   }
+  try {
+    // Fallback für isolierte Server-Entwicklung.
+    const serverVersion = readVersion(path.join(__dirname, "package.json"));
+    if (serverVersion) return serverVersion;
+  } catch {
+    /* final fallback unten */
+  }
+  return "0.0.0";
 })();
 
 const { PORT = "3001" } = process.env;
@@ -485,24 +498,167 @@ async function loadRankedAuswertungRows(settings) {
   );
 }
 
-async function generateUrkundenBuffers(settings, templateBuffer, onProgress) {
-  const ranked = await loadRankedAuswertungRows(settings);
+function mergeUrkundenSettings(base, inputSettings) {
+  return normalizeUrkundenSettings({
+    ...base,
+    ...(inputSettings ?? {}),
+    filters: {
+      ...base.filters,
+      ...(inputSettings?.filters ?? {}),
+    },
+    rankByPerDisciplin: {
+      ...base.rankByPerDisciplin,
+      ...(inputSettings?.rankByPerDisciplin ?? {}),
+    },
+  });
+}
+
+function normalizeSelectedScheibenIds(raw) {
+  if (!Array.isArray(raw)) return new Set();
+  const ids = raw
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v) && Math.trunc(v) !== 0)
+    .map((v) => Math.floor(v));
+  return new Set(ids);
+}
+
+function normalizeUrkundenOutputOptions(raw) {
+  const inObj = raw && typeof raw === "object" ? raw : {};
+  const fileNameSchema =
+    String(inObj.fileNameSchema ?? "") === "name-platz"
+      ? "name-platz"
+      : String(inObj.fileNameSchema ?? "") === "platz-name"
+        ? "platz-name"
+        : "standard";
+  const sortMode =
+    String(inObj.sortMode ?? "") === "name-platz"
+      ? "name-platz"
+      : String(inObj.sortMode ?? "") === "platz-name"
+        ? "platz-name"
+        : "wettkampf";
+  return { fileNameSchema, sortMode };
+}
+
+function cmpText(a, b) {
+  return String(a ?? "").localeCompare(String(b ?? ""), "de");
+}
+
+function cmpNum(a, b) {
+  return Number(a ?? 0) - Number(b ?? 0);
+}
+
+function buildUrkundenFileName(entry, schema) {
+  const namePart = sanitizeFilePart(
+    `${String(entry.row.Nachname ?? "").trim()}-${String(entry.row.Vorname ?? "").trim()}`
+  );
+  const wettkampfPart = sanitizeFilePart(entry.wettkampf || "wettkampf");
+  const disziplinPart = sanitizeFilePart(entry.disziplin || "disziplin");
+  const klassePart = sanitizeFilePart(entry.klasse || "klasse");
+  const platzPart = `platz-${Number(entry.row.Platz ?? 0)}`;
+  const parts =
+    schema === "platz-name"
+      ? [platzPart, namePart, wettkampfPart, disziplinPart, klassePart]
+      : schema === "name-platz"
+        ? [namePart, platzPart, wettkampfPart, disziplinPart, klassePart]
+        : [wettkampfPart, disziplinPart, klassePart, platzPart, namePart];
+  return `${parts.filter(Boolean).join("-")}.docx`;
+}
+
+function buildRankedGroups(rankedRows, settings, selectedScheibenIds = new Set()) {
   const groups = new Map();
-  for (const r of ranked) {
+  const rankFrom = settings.rankFrom;
+  const rankTo = settings.rankTo;
+  const selectedOnly = selectedScheibenIds.size > 0;
+  for (const r of rankedRows) {
+    if (r.Platz < rankFrom || r.Platz > rankTo) continue;
+    const sid = Number(r.ScheibenID);
+    if (
+      selectedOnly &&
+      (!Number.isFinite(sid) || !selectedScheibenIds.has(Math.floor(sid)))
+    ) {
+      continue;
+    }
     const key = `${r.WettkampfDisplay}\0${r.DisziplinNorm}\0${r.KlasseDisplay}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(r);
   }
+  return groups;
+}
+
+async function listUrkundenCandidates(settings) {
+  const ranked = await loadRankedAuswertungRows(settings);
+  const groups = buildRankedGroups(ranked, settings);
   const out = [];
-  const createdAt = new Date().toLocaleString("de-DE");
-  const rankFrom = settings.rankFrom;
-  const rankTo = settings.rankTo;
-  let totalDocs = 0;
-  for (const list of groups.values()) {
+  for (const [key, list] of groups.entries()) {
+    const [wettkampf, disziplin, klasse] = key.split("\0");
     for (const row of list) {
-      if (row.Platz >= rankFrom && row.Platz <= rankTo) totalDocs += 1;
+      const sid = Number(row.ScheibenID);
+      out.push({
+        scheibenId: Number.isFinite(sid) ? Math.floor(sid) : 0,
+        platz: Number(row.Platz ?? 0),
+        wettkampf: String(wettkampf || "").trim(),
+        disziplin: String(disziplin || "").trim(),
+        klasse: String(klasse || "").trim(),
+        vorname: String(row.Vorname ?? "").trim(),
+        nachname: String(row.Nachname ?? "").trim(),
+        stand: Number(row.StandNr ?? 0),
+      });
     }
   }
+  return out.filter((x) => Number.isFinite(x.scheibenId) && Math.trunc(x.scheibenId) !== 0);
+}
+
+async function generateUrkundenBuffers(
+  settings,
+  templateBuffer,
+  onProgress,
+  selectedScheibenIds = new Set(),
+  outputOptions = normalizeUrkundenOutputOptions()
+) {
+  const ranked = await loadRankedAuswertungRows(settings);
+  const groups = buildRankedGroups(ranked, settings, selectedScheibenIds);
+  const entries = [];
+  for (const [key, list] of groups.entries()) {
+    const [wettkampf, disziplin, klasse] = key.split("\0");
+    const days = computeDateLines(list);
+    for (const row of list) {
+      entries.push({ wettkampf, disziplin, klasse, days, row });
+    }
+  }
+  entries.sort((a, b) => {
+    if (outputOptions.sortMode === "name-platz") {
+      const byN = cmpText(a.row.Nachname, b.row.Nachname);
+      if (byN !== 0) return byN;
+      const byV = cmpText(a.row.Vorname, b.row.Vorname);
+      if (byV !== 0) return byV;
+      const byP = cmpNum(a.row.Platz, b.row.Platz);
+      if (byP !== 0) return byP;
+      return cmpText(a.disziplin, b.disziplin);
+    }
+    if (outputOptions.sortMode === "platz-name") {
+      const byP = cmpNum(a.row.Platz, b.row.Platz);
+      if (byP !== 0) return byP;
+      const byN = cmpText(a.row.Nachname, b.row.Nachname);
+      if (byN !== 0) return byN;
+      const byV = cmpText(a.row.Vorname, b.row.Vorname);
+      if (byV !== 0) return byV;
+      return cmpText(a.disziplin, b.disziplin);
+    }
+    const byW = cmpText(a.wettkampf, b.wettkampf);
+    if (byW !== 0) return byW;
+    const byD = cmpText(a.disziplin, b.disziplin);
+    if (byD !== 0) return byD;
+    const byK = cmpText(a.klasse, b.klasse);
+    if (byK !== 0) return byK;
+    const byP = cmpNum(a.row.Platz, b.row.Platz);
+    if (byP !== 0) return byP;
+    const byN = cmpText(a.row.Nachname, b.row.Nachname);
+    if (byN !== 0) return byN;
+    return cmpText(a.row.Vorname, b.row.Vorname);
+  });
+  const out = [];
+  const createdAt = new Date().toLocaleString("de-DE");
+  const totalDocs = entries.length;
   if (onProgress) {
     onProgress({
       phase: "generate",
@@ -515,55 +671,44 @@ async function generateUrkundenBuffers(settings, templateBuffer, onProgress) {
     });
   }
   let generatedCount = 0;
-  for (const [key, list] of groups.entries()) {
-    const [wettkampf, disziplin, klasse] = key.split("\0");
-    const days = computeDateLines(list);
-    for (const row of list) {
-      if (row.Platz < rankFrom || row.Platz > rankTo) continue;
-      const zip = new PizZip(templateBuffer);
-      const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-      const context = {
-        appName: "Meyton Wettkampfzentrale",
-        createdAt,
-        wettkampf,
-        disziplin,
-        klasse,
-        wettkampftage: days.join("\n"),
-        platz: row.Platz,
-        vorname: String(row.Vorname ?? "").trim(),
-        nachname: String(row.Nachname ?? "").trim(),
-        name: `${String(row.Vorname ?? "").trim()} ${String(row.Nachname ?? "").trim()}`.trim(),
-        stand: row.StandNr,
-        gesamt: Number(row.TotalRing01) / 10,
-        besterTeiler:
-          row.BesterTeiler01 != null && Number.isFinite(Number(row.BesterTeiler01))
-            ? Number(row.BesterTeiler01) / 10
-            : "",
-        schuesse: row.Trefferzahl,
-      };
-      doc.render(context);
-      const fileBuffer = doc.getZip().generate({
-        type: "nodebuffer",
-        compression: "DEFLATE",
+  for (const entry of entries) {
+    const { wettkampf, disziplin, klasse, days, row } = entry;
+    const zip = new PizZip(templateBuffer);
+    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+    const context = {
+      appName: "Meyton Wettkampfzentrale",
+      createdAt,
+      wettkampf,
+      disziplin,
+      klasse,
+      wettkampftage: days.join("\n"),
+      platz: row.Platz,
+      vorname: String(row.Vorname ?? "").trim(),
+      nachname: String(row.Nachname ?? "").trim(),
+      name: `${String(row.Vorname ?? "").trim()} ${String(row.Nachname ?? "").trim()}`.trim(),
+      stand: row.StandNr,
+      gesamt: Number(row.TotalRing01) / 10,
+      besterTeiler:
+        row.BesterTeiler01 != null && Number.isFinite(Number(row.BesterTeiler01))
+          ? Number(row.BesterTeiler01) / 10
+          : "",
+      schuesse: row.Trefferzahl,
+    };
+    doc.render(context);
+    const fileBuffer = doc.getZip().generate({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+    });
+    const fileName = buildUrkundenFileName(entry, outputOptions.fileNameSchema);
+    out.push({ fileName, buffer: fileBuffer });
+    generatedCount += 1;
+    if (onProgress) {
+      onProgress({
+        phase: "generate",
+        message: `Urkunden werden erstellt: ${generatedCount} von ${totalDocs}`,
+        current: generatedCount,
+        total: totalDocs,
       });
-      const fileName = [
-        sanitizeFilePart(wettkampf || "wettkampf"),
-        sanitizeFilePart(disziplin || "disziplin"),
-        sanitizeFilePart(klasse || "klasse"),
-        `platz-${row.Platz}`,
-      ]
-        .filter(Boolean)
-        .join("-") + ".docx";
-      out.push({ fileName, buffer: fileBuffer });
-      generatedCount += 1;
-      if (onProgress) {
-        onProgress({
-          phase: "generate",
-          message: `Urkunden werden erstellt: ${generatedCount} von ${totalDocs}`,
-          current: generatedCount,
-          total: totalDocs,
-        });
-      }
     }
   }
   return { files: out, rankedRows: ranked };
@@ -1049,6 +1194,17 @@ app.get("/api/urkunden/progress/:id", (req, res) => {
   res.json(job);
 });
 
+app.post("/api/urkunden/candidates", async (req, res) => {
+  try {
+    const base = readUrkundenSettings();
+    const merged = mergeUrkundenSettings(base, req.body?.settings);
+    const candidates = await listUrkundenCandidates(merged);
+    res.json({ candidates });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message) });
+  }
+});
+
 app.post("/api/urkunden/preview-pdf", async (req, res) => {
   const progressId = initUrkundenProgressJob(req.body?.progressId);
   const report = (patch) => updateUrkundenProgressJob(progressId, patch);
@@ -1071,20 +1227,17 @@ app.post("/api/urkunden/preview-pdf", async (req, res) => {
       return res.status(400).json({ error: "Keine DOCX-Vorlage hinterlegt." });
     }
     const base = readUrkundenSettings();
-    const merged = normalizeUrkundenSettings({
-      ...base,
-      ...(req.body?.settings ?? {}),
-      filters: {
-        ...base.filters,
-        ...(req.body?.settings?.filters ?? {}),
-      },
-      rankByPerDisciplin: {
-        ...base.rankByPerDisciplin,
-        ...(req.body?.settings?.rankByPerDisciplin ?? {}),
-      },
-    });
+    const merged = mergeUrkundenSettings(base, req.body?.settings);
+    const selectedScheibenIds = normalizeSelectedScheibenIds(req.body?.selectedScheibenIds);
+    const outputOptions = normalizeUrkundenOutputOptions(req.body?.options);
     const templateBuffer = fs.readFileSync(selected.path);
-    const generated = await generateUrkundenBuffers(merged, templateBuffer, report);
+    const generated = await generateUrkundenBuffers(
+      merged,
+      templateBuffer,
+      report,
+      selectedScheibenIds,
+      outputOptions
+    );
     if (generated.files.length === 0) {
       report({
         done: true,
@@ -1141,20 +1294,17 @@ app.post("/api/urkunden/preview-docx", async (req, res) => {
       return res.status(400).json({ error: "Keine DOCX-Vorlage hinterlegt." });
     }
     const base = readUrkundenSettings();
-    const merged = normalizeUrkundenSettings({
-      ...base,
-      ...(req.body?.settings ?? {}),
-      filters: {
-        ...base.filters,
-        ...(req.body?.settings?.filters ?? {}),
-      },
-      rankByPerDisciplin: {
-        ...base.rankByPerDisciplin,
-        ...(req.body?.settings?.rankByPerDisciplin ?? {}),
-      },
-    });
+    const merged = mergeUrkundenSettings(base, req.body?.settings);
+    const selectedScheibenIds = normalizeSelectedScheibenIds(req.body?.selectedScheibenIds);
+    const outputOptions = normalizeUrkundenOutputOptions(req.body?.options);
     const templateBuffer = fs.readFileSync(selected.path);
-    const generated = await generateUrkundenBuffers(merged, templateBuffer, report);
+    const generated = await generateUrkundenBuffers(
+      merged,
+      templateBuffer,
+      report,
+      selectedScheibenIds,
+      outputOptions
+    );
     if (generated.files.length === 0) {
       report({
         done: true,
@@ -1206,20 +1356,17 @@ app.post("/api/urkunden/download-pdf", async (req, res) => {
       return res.status(400).json({ error: "Keine DOCX-Vorlage hinterlegt." });
     }
     const base = readUrkundenSettings();
-    const merged = normalizeUrkundenSettings({
-      ...base,
-      ...(req.body?.settings ?? {}),
-      filters: {
-        ...base.filters,
-        ...(req.body?.settings?.filters ?? {}),
-      },
-      rankByPerDisciplin: {
-        ...base.rankByPerDisciplin,
-        ...(req.body?.settings?.rankByPerDisciplin ?? {}),
-      },
-    });
+    const merged = mergeUrkundenSettings(base, req.body?.settings);
+    const selectedScheibenIds = normalizeSelectedScheibenIds(req.body?.selectedScheibenIds);
+    const outputOptions = normalizeUrkundenOutputOptions(req.body?.options);
     const templateBuffer = fs.readFileSync(selected.path);
-    const generated = await generateUrkundenBuffers(merged, templateBuffer);
+    const generated = await generateUrkundenBuffers(
+      merged,
+      templateBuffer,
+      undefined,
+      selectedScheibenIds,
+      outputOptions
+    );
     if (generated.files.length === 0) {
       return res
         .status(400)
@@ -1266,20 +1413,17 @@ app.post("/api/urkunden/print-pdf", async (req, res) => {
       return res.status(400).json({ error: "Keine DOCX-Vorlage hinterlegt." });
     }
     const base = readUrkundenSettings();
-    const merged = normalizeUrkundenSettings({
-      ...base,
-      ...(req.body?.settings ?? {}),
-      filters: {
-        ...base.filters,
-        ...(req.body?.settings?.filters ?? {}),
-      },
-      rankByPerDisciplin: {
-        ...base.rankByPerDisciplin,
-        ...(req.body?.settings?.rankByPerDisciplin ?? {}),
-      },
-    });
+    const merged = mergeUrkundenSettings(base, req.body?.settings);
+    const selectedScheibenIds = normalizeSelectedScheibenIds(req.body?.selectedScheibenIds);
+    const outputOptions = normalizeUrkundenOutputOptions(req.body?.options);
     const templateBuffer = fs.readFileSync(selected.path);
-    const generated = await generateUrkundenBuffers(merged, templateBuffer);
+    const generated = await generateUrkundenBuffers(
+      merged,
+      templateBuffer,
+      undefined,
+      selectedScheibenIds,
+      outputOptions
+    );
     if (generated.files.length === 0) {
       return res
         .status(400)
@@ -1345,20 +1489,17 @@ app.post("/api/urkunden/generate-zip", async (req, res) => {
       return res.status(400).json({ error: "Keine DOCX-Vorlage hinterlegt." });
     }
     const base = readUrkundenSettings();
-    const merged = normalizeUrkundenSettings({
-      ...base,
-      ...(req.body?.settings ?? {}),
-      filters: {
-        ...base.filters,
-        ...(req.body?.settings?.filters ?? {}),
-      },
-      rankByPerDisciplin: {
-        ...base.rankByPerDisciplin,
-        ...(req.body?.settings?.rankByPerDisciplin ?? {}),
-      },
-    });
+    const merged = mergeUrkundenSettings(base, req.body?.settings);
+    const selectedScheibenIds = normalizeSelectedScheibenIds(req.body?.selectedScheibenIds);
+    const outputOptions = normalizeUrkundenOutputOptions(req.body?.options);
     const templateBuffer = fs.readFileSync(selected.path);
-    const generated = await generateUrkundenBuffers(merged, templateBuffer);
+    const generated = await generateUrkundenBuffers(
+      merged,
+      templateBuffer,
+      undefined,
+      selectedScheibenIds,
+      outputOptions
+    );
     if (generated.files.length === 0) {
       return res
         .status(400)
@@ -1394,20 +1535,17 @@ app.post("/api/urkunden/print", async (req, res) => {
       return res.status(400).json({ error: "Keine DOCX-Vorlage hinterlegt." });
     }
     const base = readUrkundenSettings();
-    const merged = normalizeUrkundenSettings({
-      ...base,
-      ...(req.body?.settings ?? {}),
-      filters: {
-        ...base.filters,
-        ...(req.body?.settings?.filters ?? {}),
-      },
-      rankByPerDisciplin: {
-        ...base.rankByPerDisciplin,
-        ...(req.body?.settings?.rankByPerDisciplin ?? {}),
-      },
-    });
+    const merged = mergeUrkundenSettings(base, req.body?.settings);
+    const selectedScheibenIds = normalizeSelectedScheibenIds(req.body?.selectedScheibenIds);
+    const outputOptions = normalizeUrkundenOutputOptions(req.body?.options);
     const templateBuffer = fs.readFileSync(selected.path);
-    const generated = await generateUrkundenBuffers(merged, templateBuffer);
+    const generated = await generateUrkundenBuffers(
+      merged,
+      templateBuffer,
+      undefined,
+      selectedScheibenIds,
+      outputOptions
+    );
     if (generated.files.length === 0) {
       return res
         .status(400)

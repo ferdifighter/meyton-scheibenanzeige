@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  fetchAuswertungWettkaempfe,
   fetchDisziplinen,
   fetchScheibe,
   fetchScheiben,
@@ -37,11 +38,16 @@ function formatTs(iso: string): string {
 export function TrefferProtokollPage() {
   const [disciplines, setDisciplines] = useState<string[]>([]);
   const [stands, setStands] = useState<number[]>([]);
+  const [wettkaempfe, setWettkaempfe] = useState<string[]>([]);
   const [filterOptsErr, setFilterOptsErr] = useState<string | null>(null);
   /** leer = alle Disziplinen */
   const [disciplineFilter, setDisciplineFilter] = useState("");
   /** leer = alle Stände */
   const [standFilter, setStandFilter] = useState("");
+  /** leer = alle Wettkämpfe */
+  const [wettkampfFilter, setWettkampfFilter] = useState("");
+  /** freie Suche in der linken Schützenliste */
+  const [shooterQuery, setShooterQuery] = useState("");
 
   const [list, setList] = useState<ScheibeRow[]>([]);
   const [listErr, setListErr] = useState<string | null>(null);
@@ -64,6 +70,7 @@ export function TrefferProtokollPage() {
           standFilter !== "" && Number.isFinite(Number(standFilter))
             ? Number(standFilter)
             : undefined,
+        wettkampf: wettkampfFilter || undefined,
       });
       setList(rows);
       setSelectedId((prev) => {
@@ -78,7 +85,7 @@ export function TrefferProtokollPage() {
     } finally {
       setListLoading(false);
     }
-  }, [disciplineFilter, standFilter]);
+  }, [disciplineFilter, standFilter, wettkampfFilter]);
 
   useEffect(() => {
     void loadList();
@@ -88,7 +95,22 @@ export function TrefferProtokollPage() {
     setFilterOptsErr(null);
     void (async () => {
       try {
+        const w = await fetchAuswertungWettkaempfe();
+        setWettkaempfe(w);
+        setWettkampfFilter((prev) => (prev && !w.includes(prev) ? "" : prev));
+      } catch (e) {
+        setFilterOptsErr(e instanceof Error ? e.message : String(e));
+        setWettkaempfe([]);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    setFilterOptsErr(null);
+    void (async () => {
+      try {
         const d = await fetchDisziplinen({
+          wettkampf: wettkampfFilter || undefined,
           stand:
             standFilter !== "" && Number.isFinite(Number(standFilter))
               ? Number(standFilter)
@@ -103,7 +125,7 @@ export function TrefferProtokollPage() {
         setDisciplines([]);
       }
     })();
-  }, [standFilter]);
+  }, [standFilter, wettkampfFilter]);
 
   useEffect(() => {
     setFilterOptsErr(null);
@@ -111,6 +133,7 @@ export function TrefferProtokollPage() {
       try {
         const s = await fetchStaende({
           disziplin: disciplineFilter || undefined,
+          wettkampf: wettkampfFilter || undefined,
         });
         setStands(s);
         setStandFilter((prev) => {
@@ -123,7 +146,7 @@ export function TrefferProtokollPage() {
         setStands([]);
       }
     })();
-  }, [disciplineFilter]);
+  }, [disciplineFilter, wettkampfFilter]);
 
   useEffect(() => {
     if (selectedId == null) {
@@ -158,6 +181,29 @@ export function TrefferProtokollPage() {
     [detail]
   );
 
+  const filteredList = useMemo(() => {
+    const needle = shooterQuery.trim().toLocaleLowerCase("de-DE");
+    if (!needle) return list;
+    return list.filter((row) => {
+      const nach = String(row.Nachname ?? "").trim();
+      const vor = String(row.Vorname ?? "").trim();
+      const klasse = String(row.Klasse ?? "").trim();
+      const disziplin = String(row.Disziplin ?? "").trim();
+      const searchable = `${nach} ${vor} ${klasse} ${disziplin} ${row.StandNr}`.toLocaleLowerCase(
+        "de-DE"
+      );
+      return searchable.includes(needle);
+    });
+  }, [list, shooterQuery]);
+
+  useEffect(() => {
+    setSelectedId((prev) => {
+      if (filteredList.length === 0) return null;
+      if (prev != null && filteredList.some((r) => r.ScheibenID === prev)) return prev;
+      return filteredList[0].ScheibenID;
+    });
+  }, [filteredList]);
+
   const last = detail ? getLastTreffer(detail.treffer) : null;
   const s = detail?.scheibe;
 
@@ -166,12 +212,28 @@ export function TrefferProtokollPage() {
       <header className="protokoll-page-header">
         <h1>Trefferprotokoll</h1>
         <p className="protokoll-page-lead">
-          Alle aktiven Scheiben (heute); nach Stand und Disziplin filtern.
+          Alle aktiven Scheiben; nach Wettkampf, Stand und Disziplin filtern.
           Schütze links wählen – Treffer und Serien rechts.
         </p>
       </header>
 
       <div className="protokoll-toolbar">
+        <label className="protokoll-filter-label" htmlFor="protokoll-wettkampf">
+          Wettkampf
+        </label>
+        <select
+          id="protokoll-wettkampf"
+          className="protokoll-filter-select"
+          value={wettkampfFilter}
+          onChange={(e) => setWettkampfFilter(e.target.value)}
+        >
+          <option value="">Alle Wettkämpfe</option>
+          {wettkaempfe.map((w) => (
+            <option key={w} value={w}>
+              {w}
+            </option>
+          ))}
+        </select>
         <label className="protokoll-filter-label" htmlFor="protokoll-stand">
           Stand
         </label>
@@ -211,22 +273,36 @@ export function TrefferProtokollPage() {
         )}
         {!listLoading && !listErr && (
           <span className="protokoll-filter-count">
-            {list.length} Einträge
+            {filteredList.length}
+            {filteredList.length !== list.length ? ` / ${list.length}` : ""} Einträge
           </span>
         )}
       </div>
 
       <div className="protokoll-split">
         <aside className="protokoll-list-panel" aria-label="Schützenliste">
+          <div className="protokoll-list-search">
+            <label className="protokoll-filter-label" htmlFor="protokoll-shooter-search">
+              Schütze suchen
+            </label>
+            <input
+              id="protokoll-shooter-search"
+              className="protokoll-filter-select"
+              type="search"
+              value={shooterQuery}
+              onChange={(e) => setShooterQuery(e.target.value)}
+              placeholder="Name, Disziplin, Klasse oder Stand"
+            />
+          </div>
           {listErr && <p className="error protokoll-panel-msg">{listErr}</p>}
           {listLoading && (
             <p className="muted protokoll-panel-msg">Lade Liste …</p>
           )}
-          {!listLoading && !listErr && list.length === 0 && (
+          {!listLoading && !listErr && filteredList.length === 0 && (
             <p className="muted protokoll-panel-msg">Keine Scheiben gefunden.</p>
           )}
           <ul className="protokoll-shooter-list">
-            {list.map((row) => {
+            {filteredList.map((row) => {
               const id = row.ScheibenID;
               const active = selectedId === id;
               const label = `${String(row.Nachname).trim()}, ${String(row.Vorname).trim()}`;

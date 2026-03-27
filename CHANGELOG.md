@@ -2,6 +2,24 @@
 
 Alle nennenswerten Änderungen an diesem Projekt werden in dieser Datei dokumentiert.
 
+## [1.6.0] - 2026-03-25
+
+### Added
+- Trefferprotokoll erweitert um Wettkampf-Filter und Schützen-Suche in der linken Liste.
+- Auswertung erweitert um Verwaltung gespeicherter Auswertungen (anzeigen, auswählen, aktualisieren, löschen).
+- Urkunden-Schritt 3 erweitert um optionale Schützenauswahl (inkl. Suche, Mehrfachauswahl) für gezielten Neudruck.
+- Urkunden-Ausgabeoptionen erweitert um Sortierung und Dateinamenschema für Einzel-PDFs.
+
+### Changed
+- Urkunden-Workflow in Schritt 3 klarer geführt: Download/Druck erst nach erzeugter Vorschau möglich.
+- Fortschritt/Status in der Urkunden-Vorschau verbessert und Hinweise benutzerfreundlicher formuliert.
+- Druck in der Webanwendung auf Browser-Druckdialog umgestellt (statt serverseitigem Druckversuch).
+- UI-Feinschliff in Urkunden/Auswertung: kompaktere Actions, konsistente Abstände und deaktivierte Button-Zustände ohne Hover-Effekt.
+
+### Fixed
+- Kandidaten-/Schützenlisten für Urkunden korrigiert (inkl. gültiger negativer `ScheibenID`-Werte).
+- Stabilitätsfixes in Auswertung/Umschaltlogik und Urkunden-Preview (veraltete Vorschau wird zuverlässig zurückgesetzt).
+
 ## [1.5.1] - 2026-03-25
 
 ### Changed

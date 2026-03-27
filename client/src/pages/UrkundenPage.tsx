@@ -8,15 +8,16 @@ import {
   fetchAuswertungProfile,
   fetchAuswertungProfiles,
   type AuswertungProfileSummary,
+  fetchUrkundenCandidates,
   fetchUrkundenPreviewPdfWithProgress,
   fetchUrkundenPreviewDocxWithProgress,
   fetchUrkundenPreviewProgress,
   fetchUrkundenSettings,
   fetchUrkundenTemplateDocx,
   fetchUrkundenTemplates,
-  printUrkundenPdf,
   saveUrkundenSettings,
   selectUrkundenTemplate,
+  type UrkundenCandidate,
   type UrkundenPreviewProgress,
   type UrkundenSettings,
   uploadUrkundenTemplate,
@@ -131,7 +132,19 @@ export function UrkundenPage() {
   const [editorBusy, setEditorBusy] = useState(false);
   const [profiles, setProfiles] = useState<AuswertungProfileSummary[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState("");
+  const [candidates, setCandidates] = useState<UrkundenCandidate[]>([]);
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<number[]>([]);
+  const [restrictToSelectedCandidates, setRestrictToSelectedCandidates] = useState(false);
+  const [candidateSearch, setCandidateSearch] = useState("");
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
+  const [candidatesErr, setCandidatesErr] = useState<string | null>(null);
   const [outputMode, setOutputMode] = useState<"single" | "perCertificate">("single");
+  const [fileNameSchema, setFileNameSchema] = useState<
+    "standard" | "platz-name" | "name-platz"
+  >("standard");
+  const [sortMode, setSortMode] = useState<"wettkampf" | "platz-name" | "name-platz">(
+    "wettkampf"
+  );
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewDocxBlob, setPreviewDocxBlob] = useState<Blob | null>(null);
   const [previewTotalDocs, setPreviewTotalDocs] = useState<number>(0);
@@ -151,6 +164,29 @@ export function UrkundenPage() {
   const orderedTemplates = useMemo(
     () => [...availableTemplateNames].sort((a, b) => a.localeCompare(b, "de")),
     [availableTemplateNames]
+  );
+  const visibleCandidates = useMemo(() => {
+    const q = candidateSearch.trim().toLocaleLowerCase("de-DE");
+    if (!q) return candidates;
+    return candidates.filter((c) => {
+      const text =
+        `${c.nachname} ${c.vorname} ${c.disziplin} ${c.klasse} ${c.wettkampf} ${c.platz} ${c.stand}`.toLocaleLowerCase(
+          "de-DE"
+        );
+      return text.includes(q);
+    });
+  }, [candidateSearch, candidates]);
+  const visibleCandidateIds = useMemo(
+    () => visibleCandidates.map((c) => c.scheibenId),
+    [visibleCandidates]
+  );
+  const effectiveSelectedIds = useMemo(
+    () => (restrictToSelectedCandidates ? selectedCandidateIds : []),
+    [restrictToSelectedCandidates, selectedCandidateIds]
+  );
+  const hasGeneratedPreview = useMemo(
+    () => Boolean(previewPdfUrl || previewDocxBlob),
+    [previewPdfUrl, previewDocxBlob]
   );
 
   useEffect(() => {
@@ -216,6 +252,74 @@ export function UrkundenPage() {
     if (!editTemplateName || !editorHostRef.current) return;
     return mountDocxEditorGerman(editorHostRef.current);
   }, [editTemplateName, editorBuffer]);
+
+  async function loadCandidatesForSelection() {
+    setCandidatesLoading(true);
+    setCandidatesErr(null);
+    try {
+      const list = await fetchUrkundenCandidates(settings);
+      setCandidates(list);
+      setSelectedCandidateIds((prev) => {
+        const existing = new Set(list.map((c) => c.scheibenId));
+        const kept = prev.filter((id) => existing.has(id));
+        if (kept.length > 0) return kept;
+        return list.map((c) => c.scheibenId);
+      });
+    } catch (e) {
+      setCandidatesErr(e instanceof Error ? e.message : String(e));
+      setCandidates([]);
+      setSelectedCandidateIds([]);
+    } finally {
+      setCandidatesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab !== "preview" || !restrictToSelectedCandidates) return;
+    void loadCandidatesForSelection();
+  }, [
+    activeTab,
+    restrictToSelectedCandidates,
+    settings.filters.wettkampf,
+    settings.filters.disziplin,
+    settings.filters.stand,
+    settings.filters.year,
+    settings.filters.dateFrom,
+    settings.filters.dateTo,
+    settings.filters.allDates,
+    settings.rankFrom,
+    settings.rankTo,
+    settings.rankByDefault,
+    settings.rankByPerDisciplin,
+  ]);
+
+  useEffect(() => {
+    setPreviewDocxBlob(null);
+    setPreviewTotalDocs(0);
+    setPreviewProgress(null);
+    setPreviewErr(null);
+    setPreviewPdfUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, [
+    settings.rankFrom,
+    settings.rankTo,
+    settings.rankByDefault,
+    settings.rankByPerDisciplin,
+    settings.filters.wettkampf,
+    settings.filters.disziplin,
+    settings.filters.stand,
+    settings.filters.year,
+    settings.filters.dateFrom,
+    settings.filters.dateTo,
+    settings.filters.allDates,
+    restrictToSelectedCandidates,
+    selectedCandidateIds,
+    outputMode,
+    fileNameSchema,
+    sortMode,
+  ]);
 
   useEffect(() => {
     const cls = "docx-editor-open";
@@ -407,6 +511,10 @@ export function UrkundenPage() {
   }
 
   async function onBuildPreview() {
+    if (restrictToSelectedCandidates && selectedCandidateIds.length === 0) {
+      setPreviewErr("Bitte mindestens einen Schützen auswählen.");
+      return;
+    }
     const progressId = `urkunden-preview-${Date.now().toString(36)}-${Math.random()
       .toString(36)
       .slice(2, 8)}`;
@@ -454,12 +562,20 @@ export function UrkundenPage() {
         void pollProgress();
       }, 300);
       try {
-        const pdf = await fetchUrkundenPreviewPdfWithProgress(settings, progressId);
+        const pdf = await fetchUrkundenPreviewPdfWithProgress(settings, progressId, {
+          selectedScheibenIds: effectiveSelectedIds,
+          fileNameSchema,
+          sortMode,
+        });
         setPreviewPdfUrl(URL.createObjectURL(pdf));
         setActiveTab("preview");
         setInfo("Die Vorschau ist fertig. Du kannst sie jetzt prüfen, herunterladen oder direkt drucken.");
       } catch {
-        const out = await fetchUrkundenPreviewDocxWithProgress(settings, progressId);
+        const out = await fetchUrkundenPreviewDocxWithProgress(settings, progressId, {
+          selectedScheibenIds: effectiveSelectedIds,
+          fileNameSchema,
+          sortMode,
+        });
         setPreviewDocxBlob(out.blob);
         setPreviewTotalDocs(out.total);
         setActiveTab("preview");
@@ -479,11 +595,23 @@ export function UrkundenPage() {
   }
 
   async function onDownloadPdfOutput() {
+    if (restrictToSelectedCandidates && selectedCandidateIds.length === 0) {
+      setErr("Bitte mindestens einen Schützen auswählen.");
+      return;
+    }
+    if (!hasGeneratedPreview) {
+      setErr("Bitte zuerst eine Vorschau erstellen.");
+      return;
+    }
     setBusy(true);
     setErr(null);
     setInfo(null);
     try {
-      const blob = await downloadUrkundenPdf(settings, outputMode);
+      const blob = await downloadUrkundenPdf(settings, outputMode, {
+        selectedScheibenIds: effectiveSelectedIds,
+        fileNameSchema,
+        sortMode,
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const stamp = new Date().toISOString().slice(0, 10);
@@ -506,16 +634,39 @@ export function UrkundenPage() {
   }
 
   async function onPrintPdfOutput() {
+    if (restrictToSelectedCandidates && selectedCandidateIds.length === 0) {
+      setErr("Bitte mindestens einen Schützen auswählen.");
+      return;
+    }
+    if (!previewPdfUrl) {
+      setErr("Bitte zuerst eine PDF-Vorschau erstellen.");
+      return;
+    }
     setBusy(true);
     setErr(null);
     setInfo(null);
     try {
-      const r = await printUrkundenPdf(settings, outputMode);
-      setInfo(
-        `Druck gestartet (${r.mode === "single" ? "ein Dokument" : "einzeln"}): ${r.printed} Datei(en)` +
-          (r.printer ? ` auf ${r.printer}` : "") +
-          `.`
-      );
+      // Für den Web-Workflow den Browser-Printdialog nutzen (Druckerwahl etc.).
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      iframe.src = previewPdfUrl;
+      document.body.appendChild(iframe);
+      iframe.onload = () => {
+        setTimeout(() => {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        }, 180);
+      };
+      window.setTimeout(() => {
+        iframe.remove();
+      }, 45_000);
+
+      setInfo("Druckdialog geöffnet.");
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -528,7 +679,7 @@ export function UrkundenPage() {
       <header className="protokoll-page-header">
         <h1>Urkunden</h1>
         <p className="protokoll-page-lead">
-          Vorlage auswählen, Wertung setzen und Urkunden als PDF vorschauen,
+          Vorlage auswählen, Platzierungen festlegen und Urkunden als PDF vorschauen,
           herunterladen oder drucken.
         </p>
       </header>
@@ -546,7 +697,7 @@ export function UrkundenPage() {
           className={`urkunden-tab-btn ${activeTab === "wertung" ? "active" : ""}`}
           onClick={() => setActiveTab("wertung")}
         >
-          2. Platzierung & Wertung
+          2. Platzierung
         </button>
         <button
           type="button"
@@ -565,7 +716,7 @@ export function UrkundenPage() {
               onClick={() => setActiveTab("wertung")}
               disabled={busy}
             >
-              Weiter zu Platzierung & Wertung
+              Weiter zu Platzierung
             </button>
           )}
           {activeTab === "wertung" && (
@@ -850,7 +1001,7 @@ export function UrkundenPage() {
 
       {activeTab === "wertung" && (
         <section className="auswertung-disc-section">
-          <h2 className="auswertung-disc-section-title">Platzierung & Wertung</h2>
+          <h2 className="auswertung-disc-section-title">Platzierung</h2>
           <div className="urkunden-form-grid">
             <label className="urkunden-form-row">
               <span className="protokoll-filter-label">Gespeicherte Auswertung</span>
@@ -911,33 +1062,191 @@ export function UrkundenPage() {
       {activeTab === "preview" && (
         <section className="auswertung-disc-section">
           <h2 className="auswertung-disc-section-title">Vorschau & Drucken</h2>
-          <div className="urkunden-form-grid">
-            <label className="urkunden-form-row">
-              <span className="protokoll-filter-label">PDF-Ausgabe</span>
-              <div className="urkunden-load-row">
-                <label className="auswertung-check">
-                  <input
-                    type="radio"
-                    name="urkunden-output-mode"
-                    checked={outputMode === "single"}
-                    onChange={() => setOutputMode("single")}
-                  />
-                  Alle Urkunden in einem PDF
+          {info && <p className="muted">{info}</p>}
+          <div className="urkunden-preview-layout">
+            <div className="urkunden-preview-left">
+              <div className="urkunden-form-grid">
+                <label className="urkunden-form-row">
+                  <span className="protokoll-filter-label">Schützenauswahl</span>
+                  <div className="urkunden-load-row">
+                    <label className="auswertung-check">
+                      <input
+                        type="checkbox"
+                        checked={restrictToSelectedCandidates}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setRestrictToSelectedCandidates(checked);
+                          setCandidateSearch("");
+                          if (checked) void loadCandidatesForSelection();
+                        }}
+                      />
+                      Nur ausgewählte Schützen verwenden
+                    </label>
+                    {restrictToSelectedCandidates && (
+                      <span className="muted">
+                        {selectedCandidateIds.length} von {candidates.length} ausgewählt
+                      </span>
+                    )}
+                  </div>
                 </label>
-                <label className="auswertung-check">
-                  <input
-                    type="radio"
-                    name="urkunden-output-mode"
-                    checked={outputMode === "perCertificate"}
-                    onChange={() => setOutputMode("perCertificate")}
-                  />
-                  Jede Urkunde als eigene PDF
+
+                <label className="urkunden-form-row">
+                  <span className="protokoll-filter-label">PDF-Ausgabe</span>
+                  <select
+                    className="protokoll-filter-select"
+                    value={outputMode}
+                    onChange={(e) =>
+                      setOutputMode(
+                        e.target.value === "perCertificate"
+                          ? "perCertificate"
+                          : "single"
+                      )
+                    }
+                  >
+                    <option value="single">Alle Urkunden in einem PDF</option>
+                    <option value="perCertificate">
+                      Jede Urkunde als eigene PDF
+                    </option>
+                  </select>
+                </label>
+
+                {outputMode === "perCertificate" && (
+                  <label className="urkunden-form-row">
+                    <span className="protokoll-filter-label">Dateinamen-Schema</span>
+                    <select
+                      className="protokoll-filter-select"
+                      value={fileNameSchema}
+                      onChange={(e) =>
+                        setFileNameSchema(
+                          e.target.value === "platz-name"
+                            ? "platz-name"
+                            : e.target.value === "name-platz"
+                              ? "name-platz"
+                              : "standard"
+                        )
+                      }
+                    >
+                      <option value="standard">
+                        Standard (Wettkampf-Disziplin-Klasse-Platz-Name)
+                      </option>
+                      <option value="platz-name">Platz-Name-Wettkampf-Disziplin-Klasse</option>
+                      <option value="name-platz">Name-Platz-Wettkampf-Disziplin-Klasse</option>
+                    </select>
+                  </label>
+                )}
+
+                <label className="urkunden-form-row">
+                  <span className="protokoll-filter-label">Sortierung</span>
+                  <select
+                    className="protokoll-filter-select"
+                    value={sortMode}
+                    onChange={(e) =>
+                      setSortMode(
+                        e.target.value === "platz-name"
+                          ? "platz-name"
+                          : e.target.value === "name-platz"
+                            ? "name-platz"
+                            : "wettkampf"
+                      )
+                    }
+                  >
+                    <option value="wettkampf">Wettkampf → Disziplin → Klasse → Platz</option>
+                    <option value="platz-name">Platz → Name</option>
+                    <option value="name-platz">Name → Platz</option>
+                  </select>
                 </label>
               </div>
-            </label>
+            </div>
+
+            {restrictToSelectedCandidates && (
+              <div className="urkunden-preview-right">
+                <div className="urkunden-candidate-box">
+                  <label className="protokoll-filter-label" htmlFor="urkunden-candidate-search">
+                    Suche
+                  </label>
+                  <input
+                    id="urkunden-candidate-search"
+                    type="search"
+                    className="protokoll-filter-select"
+                    value={candidateSearch}
+                    onChange={(e) => setCandidateSearch(e.target.value)}
+                    placeholder="Name, Disziplin, Klasse, Wettkampf…"
+                  />
+                  <div className="urkunden-candidate-actions">
+                    <button
+                      type="button"
+                      className="auswertung-refresh"
+                      onClick={() => void loadCandidatesForSelection()}
+                      disabled={candidatesLoading}
+                    >
+                      Neu laden
+                    </button>
+                    <button
+                      type="button"
+                      className="auswertung-refresh"
+                      onClick={() =>
+                        setSelectedCandidateIds((prev) => {
+                          const set = new Set(prev);
+                          for (const id of visibleCandidateIds) set.add(id);
+                          return [...set];
+                        })
+                      }
+                      disabled={visibleCandidateIds.length === 0 || candidatesLoading}
+                    >
+                      Sichtbare auswählen
+                    </button>
+                    <button
+                      type="button"
+                      className="auswertung-refresh"
+                      onClick={() =>
+                        setSelectedCandidateIds((prev) =>
+                          prev.filter((id) => !visibleCandidateIds.includes(id))
+                        )
+                      }
+                      disabled={visibleCandidateIds.length === 0 || candidatesLoading}
+                    >
+                      Sichtbare abwählen
+                    </button>
+                  </div>
+                  <div className="urkunden-candidate-list" role="listbox" aria-multiselectable>
+                    {candidatesLoading && <p className="muted">Schützen werden geladen…</p>}
+                    {!candidatesLoading && candidatesErr && <p className="error">{candidatesErr}</p>}
+                    {!candidatesLoading && !candidatesErr && visibleCandidates.length === 0 && (
+                      <p className="muted">
+                        Keine passenden Schützen gefunden (ggf. Filter/Platzierung prüfen).
+                      </p>
+                    )}
+                    {!candidatesLoading &&
+                      !candidatesErr &&
+                      visibleCandidates.map((c) => {
+                        const checked = selectedCandidateIds.includes(c.scheibenId);
+                        const name = `${c.nachname}, ${c.vorname}`;
+                        return (
+                          <label key={c.scheibenId} className="urkunden-candidate-item">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) =>
+                                setSelectedCandidateIds((prev) =>
+                                  e.target.checked
+                                    ? [...new Set([...prev, c.scheibenId])]
+                                    : prev.filter((id) => id !== c.scheibenId)
+                                )
+                              }
+                            />
+                            <span>
+                              #{c.platz} · {name} · {c.disziplin} · {c.klasse} · Stand {c.stand}
+                            </span>
+                          </label>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="auswertung-compact-actions">
+          <div className="auswertung-compact-actions urkunden-preview-actions">
             <button
               type="button"
               className="auswertung-refresh"
@@ -950,7 +1259,7 @@ export function UrkundenPage() {
               type="button"
               className="auswertung-print-btn"
               onClick={() => void onDownloadPdfOutput()}
-              disabled={busy}
+              disabled={busy || previewBusy || !hasGeneratedPreview}
             >
               PDF herunterladen
             </button>
@@ -958,12 +1267,14 @@ export function UrkundenPage() {
               type="button"
               className="auswertung-print-btn"
               onClick={() => void onPrintPdfOutput()}
-              disabled={busy}
+              disabled={busy || previewBusy || !previewPdfUrl}
             >
               Drucken
             </button>
           </div>
-          {info && <p className="muted">{info}</p>}
+          {!previewBusy && !hasGeneratedPreview && (
+            <p className="muted">Bitte zuerst „Vorschau erstellen“ ausführen.</p>
+          )}
 
           {previewBusy && (
             <div className="urkunden-progress-wrap" role="status" aria-live="polite">

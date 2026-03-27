@@ -5,13 +5,21 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(
-  readFileSync(path.join(__dirname, "package.json"), "utf-8")
-) as { version: string };
+const readVersion = (filePath: string) => {
+  const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as { version?: string };
+  return typeof parsed.version === "string" && parsed.version.trim() !== ""
+    ? parsed.version.trim()
+    : "";
+};
+
+const appVersion =
+  readVersion(path.join(__dirname, "../package.json")) ||
+  readVersion(path.join(__dirname, "package.json")) ||
+  "0.0.0";
 
 export default defineConfig({
   define: {
-    "import.meta.env.VITE_APP_VERSION": JSON.stringify(pkg.version),
+    "import.meta.env.VITE_APP_VERSION": JSON.stringify(appVersion),
   },
   plugins: [react()],
   server: {
